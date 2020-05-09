@@ -13,4 +13,13 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-from . gennodejs_main import *
+
+## ROS message source code generation for JS
+##
+## Converts ROS .msg files in a package into JS source files
+
+import gendart
+import sys
+
+if __name__ == "__main__":
+    gendart.gendart_main.genmain(sys.argv, 'gen_dart.py')

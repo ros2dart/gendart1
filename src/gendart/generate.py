@@ -249,7 +249,7 @@ def find_path_from_cmake_path(path):
     return None
 
 def find_path_for_package(package):
-    return find_path_from_cmake_path(pjoin('share/gennodejs/ros', package))
+    return find_path_from_cmake_path(pjoin('share/gendart/ros', package))
 
 def find_requires(spec):
     found_packages = []
@@ -755,7 +755,7 @@ def write_srv_end(s, context, spec):
 
 def generate_msg(pkg, files, out_dir, search_path):
     """
-    Generate javascript code for all messages in a package
+    Generate dart code for all messages in a package
     """
     msg_context = MsgContext.create_default()
     for f in files:
@@ -767,7 +767,7 @@ def generate_msg(pkg, files, out_dir, search_path):
 
 def generate_srv(pkg, files, out_dir, search_path):
     """
-    Generate javascript code for all services in a package
+    Generate dart code for all services in a package
     """
     msg_context = MsgContext.create_default()
     for f in files:
@@ -799,7 +799,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
         genmsg.load_msg_by_type(msg_context, '%s/%s'%(package, m), search_path)
 
     ########################################
-    # 1. Write the .js file
+    # 1. Write the .dart file
     ########################################
 
     io = StringIO()
@@ -824,7 +824,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
         except OSError as e:
             pass
 
-    with open('%s/%s.js'%(output_dir, spec.short_name), 'w') as f:
+    with open('%s/%s.dart'%(output_dir, spec.short_name), 'w') as f:
         f.write(io.getvalue() + "\n")
     io.close()
 

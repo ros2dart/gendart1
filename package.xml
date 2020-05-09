@@ -3,10 +3,10 @@
   href="http://download.ros.org/schema/package_format3.xsd"
   schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>gennodejs</name>
+  <name>gendart</name>
   <version>2.0.1</version>
   <description>
-  Javascript ROS message and service generators.
+  Dart ROS message and service generators.
   </description>
   <maintainer email="csmith@rethinkrobotics.com">Chris Smith</maintainer>
   <license>Apache 2.0</license>
@@ -20,6 +20,6 @@
   <exec_depend>genmsg</exec_depend>
 
   <export>
-    <message_generator>javascript</message_generator>
+    <message_generator>dart</message_generator>
   </export>
 </package>

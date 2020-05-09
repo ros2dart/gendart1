@@ -1,21 +1,21 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(gennodejs)
+project(gendart)
 find_package(catkin REQUIRED COMPONENTS genmsg)
 
 catkin_package(
   CATKIN_DEPENDS genmsg
-  CFG_EXTRAS gennodejs-extras.cmake
+  CFG_EXTRAS gendart-extras.cmake
 )
 
 add_subdirectory(scripts)
 
-file(WRITE ${CATKIN_DEVEL_PREFIX}/${GENMSG_LANGS_DESTINATION}/gennodejs "JAVASCRIPT")
-install(FILES ${CATKIN_DEVEL_PREFIX}/${GENMSG_LANGS_DESTINATION}/gennodejs
+file(WRITE ${CATKIN_DEVEL_PREFIX}/${GENMSG_LANGS_DESTINATION}/gendart "DART")
+install(FILES ${CATKIN_DEVEL_PREFIX}/${GENMSG_LANGS_DESTINATION}/gendart
   DESTINATION ${GENMSG_LANGS_DESTINATION})
 
 # drop marker file to prevent rospack from spending time on crawling this folder
-#file(WRITE ${CATKIN_DEVEL_PREFIX}/share/nodejs/rospack_nosubdirs "")
-#install(FILES ${CATKIN_DEVEL_PREFIX}/share/nodejs/rospack_nosubdirs
-#  DESTINATION share/nodejs)
+#file(WRITE ${CATKIN_DEVEL_PREFIX}/share/dart/rospack_nosubdirs "")
+#install(FILES ${CATKIN_DEVEL_PREFIX}/share/dart/rospack_nosubdirs
+#  DESTINATION share/dart)
 
 catkin_python_setup()
