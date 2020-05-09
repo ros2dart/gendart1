@@ -119,6 +119,26 @@ def get_type_size(t):
     return None
 
 
+def get_type(field):
+    if field.is_array:
+        field_copy = deepcopy(field)
+        field_copy.is_array = False
+        return 'List<{}>'.format(get_type(field_copy))
+    elif field.is_builtin:
+        if is_string(field.type):
+            return 'String'
+        elif is_time(field.type):
+            return 'RosTime'
+        elif is_bool(field.type):
+            return 'bool'
+        elif is_float(field.type):
+            return 'double'
+        else:
+            return 'var'
+    (package, msg_type) = field.base_type.split('/')
+    return '{}'.format(msg_type)
+
+
 def get_default_value(field, current_message_package):
     """Return the default value for a message data field"""
     if field.is_array:
@@ -129,7 +149,7 @@ def get_default_value(field, current_message_package):
             field_copy.is_array = False
             field_default = get_default_value(
                 field_copy, current_message_package)
-            return 'new Array({}).fill({})'.format(field.array_len, field_default)
+            return 'Array({}).fill({})'.format(field.array_len, field_default)
     elif field.is_builtin:
         if is_string(field.type):
             return '\'\''
@@ -143,10 +163,7 @@ def get_default_value(field, current_message_package):
             return '0'
     # else
     (package, msg_type) = field.base_type.split('/')
-    if package == current_message_package:
-        return 'new {}()'.format(msg_type)
-    else:
-        return 'new {}.msg.{}()'.format(package, msg_type)
+    return '{}()'.format(msg_type)
 
 
 def is_message_fixed_size(spec, search_path):
@@ -308,14 +325,8 @@ def write_begin(s, spec, is_service=False):
 def write_requires(s, spec, previous_packages=None, prev_deps=None, isSrv=False):
     "Writes out the require fields"
     if previous_packages is None:
-        s.write('"use strict";')
-        s.newline()
-        s.write('const _serializer = _ros_msg_utils.Serialize;')
-        s.write('const _arraySerializer = _serializer.Array;')
-        s.write('const _deserializer = _ros_msg_utils.Deserialize;')
-        s.write('const _arrayDeserializer = _deserializer.Array;')
-        s.write('const _finder = _ros_msg_utils.Find;')
-        s.write('const _getByteLength = _ros_msg_utils.getByteLength;')
+        s.write('import \'package:dartros/msg_utils.dart\';')
+
         previous_packages = {}
     if prev_deps is None:
         prev_deps = []
@@ -330,9 +341,9 @@ def write_requires(s, spec, previous_packages=None, prev_deps=None, isSrv=False)
     # so that we don't create a circular requires dependency
     for dep in local_deps:
         if isSrv:
-            s.write('let {} = require(\'../msg/{}.dart\');'.format(dep, dep))
+            s.write('import \'../msgs/{}.dart\';'.format(dep))
         else:
-            s.write('let {} = require(\'./{}.dart\');'.format(dep, dep))
+            s.write('import \'{}.dart\';'.format(dep))
 
     # filter out previously found packages
     found_packages = {
@@ -348,37 +359,38 @@ def write_requires(s, spec, previous_packages=None, prev_deps=None, isSrv=False)
     return found_packages, local_deps
 
 
+def write_msg_fields(s, spec, field):
+    s.write('{} {};'.format(get_type(field), field.name))
+
+
 def write_msg_constructor_field(s, spec, field):
-    s.write('if (initObj.hasOwnProperty(\'{}\')) {{'.format(field.name))
-    with Indent(s):
-        s.write('this.{} = initObj.{}'.format(field.name, field.name))
-    s.write('}')
-    s.write('else {')
-    with Indent(s):
-        s.write('this.{} = {};'.format(
-            field.name, get_default_value(field, spec.package)))
-    s.write('}')
+    s.write('{},'.format(field.name))
+
+
+def write_msg_constructor_initializers(s, spec, field, last):
+    s.write('{} = {}{}'.format(
+            field.name, get_default_value(field, spec.package), ',' if not last else ';'))
 
 
 def write_class(s, spec):
     s.write('class {} {{'.format(spec.actual_name))
+
     with Indent(s):
+        for field in spec.parsed_fields():
+            write_msg_fields(s, spec, field)
+            s.newline()
+        # Constructor
         # TODO: add optional object argument
-        s.write('constructor(initObj={}) {')
+        s.write('{}({{ '.format(spec.actual_name))
         with Indent(s):
-            s.write('if (initObj === null) {')
-            with Indent(s):
-                s.write(
-                    '// initObj === null is a special case for deserialization where we don\'t initialize fields')
-                for field in spec.parsed_fields():
-                    s.write('this.{} = null;'.format(field.name))
-            s.write('}')
-            s.write('else {')
-            with Indent(s):
-                for field in spec.parsed_fields():
-                    write_msg_constructor_field(s, spec, field)
-            s.write('}')
-        s.write('}')
+            for field in spec.parsed_fields():
+                write_msg_constructor_field(s, spec, field)
+        s.write('}):')
+        num_fields = len(spec.parsed_fields())
+        for i, field in enumerate(spec.parsed_fields()):
+            write_msg_constructor_initializers(
+                s, spec, field, num_fields-1 == i)
+
     s.newline()
 
 
@@ -390,79 +402,10 @@ def get_message_path_from_field(field, pkg):
     return '{}.msg.{}'.format(field_pkg, msg_type)
 
 
-def write_resolve(s, spec):
-    with Indent(s):
-        s.write('static Resolve(msg) {')
-        with Indent(s):
-            s.write(
-                '// deep-construct a valid message object instance of whatever was passed in')
-            s.write('if (typeof msg !== \'object\' || msg === null) {')
-            with Indent(s):
-                s.write('msg = {};')
-            s.write('}')
-            s.write('const resolved = new {}(null);'.format(spec.short_name))
-            for field in spec.parsed_fields():
-                if not field.is_builtin:
-                    s.write('if (msg.{} !== undefined) {{'.format(field.name))
-                    with Indent(s):
-                        if field.is_array:
-                            if field.array_len is None:
-                                s.write('resolved.{} = new Array(msg.{}.length);'.format(
-                                    field.name, field.name))
-                                s.write(
-                                    'for (let i = 0; i < resolved.{}.length; ++i) {{'.format(field.name))
-                                with Indent(s):
-                                    s.write('resolved.{}[i] = {}.Resolve(msg.{}[i]);'.format(
-                                        field.name, get_message_path_from_field(field, spec.package), field.name))
-                                s.write('}')
-                            else:
-                                s.write('resolved.{} = new Array({})'.format(
-                                    field.name, field.array_len))
-                                s.write(
-                                    'for (let i = 0; i < resolved.{}.length; ++i) {{'.format(field.name))
-                                with Indent(s):
-                                    s.write(
-                                        'if (msg.{}.length > i) {{'.format(field.name))
-                                    with Indent(s):
-                                        s.write('resolved.{}[i] = {}.Resolve(msg.{}[i]);'.format(
-                                            field.name, get_message_path_from_field(field, spec.package), field.name))
-                                    s.write('}')
-                                    s.write('else {')
-                                    with Indent(s):
-                                        s.write('resolved.{}[i] = new {}();'.format(
-                                            field.name, get_message_path_from_field(field, spec.package)))
-                                    s.write('}')
-                                s.write('}')
-                        else:
-                            s.write('resolved.{} = {}.Resolve(msg.{})'.format(
-                                field.name, get_message_path_from_field(field, spec.package), field.name))
-                    s.write('}')
-                    s.write('else {')
-                    with Indent(s):
-                        s.write('resolved.{} = {}'.format(
-                            field.name, get_default_value(field, spec.package)))
-                    s.write('}')
-                else:
-                    s.write('if (msg.{} !== undefined) {{'.format(field.name))
-                    with Indent(s):
-                        s.write('resolved.{} = msg.{};'.format(
-                            field.name, field.name))
-                    s.write('}')
-                    s.write('else {')
-                    with Indent(s):
-                        s.write('resolved.{} = {}'.format(
-                            field.name, get_default_value(field, spec.package)))
-                    s.write('}')
-                s.newline()
-            s.write('return resolved;')
-            s.write('}')
-
-
 def write_end(s, spec):
-    s.write('};')
+    s.write('}')
     s.newline()
     write_constants(s, spec)
-    s.write('module.exports = {};'.format(spec.actual_name))
 
 
 def write_serialize_base(s, rest):
@@ -732,49 +675,36 @@ def write_get_message_size(s, spec, search_path):
         s.newline()
 
 
-def write_package_index(s, package_dir):
-    s.write('"use strict";')
-    s.newline()
-    s.write('module.exports = {')
-    msgExists = os.path.exists(pjoin(package_dir, 'msg/_index.dart'))
-    srvExists = os.path.exists(pjoin(package_dir, 'srv/_index.dart'))
+def write_pubspec(s, package_dir):
+    package = os.path.basename(package_dir)
+    s.write('name: {}'.format(package))
+    # msgExists = os.path.exists(pjoin(package_dir, 'lib/msgs.dart'))
+    # srvExists = os.path.exists(pjoin(package_dir, 'lib/srvs.dart'))
+    s.write('environment:')
     with Indent(s):
-        if (msgExists):
-            s.write('msg: require(\'./msg/_index.dart\'),')
-        if (srvExists):
-            s.write('srv: require(\'./srv/_index.dart\')')
-    s.write('};')
+        s.write('sdk: ">=2.7.0 < 3.0.0"')
+    s.newline()
+    s.write('dependencies:')
+    with Indent(s):
+        s.write('dartros: ')
+        with Indent(s):
+            s.write('git:')
+            with Indent(s):
+                s.write('url: https://github.com/TimWhiting/dartros')
     s.newline()
 
 
-def write_msg_index(s, msgs, pkg, context):
+def write_msg_export(s, msgs, pkg, context):
     "Writes an index for the messages"
-    s.write('"use strict";')
-    s.newline()
-
     for msg in msgs:
-        s.write('let {} = require(\'./{}.dart\');'.format(msg, msg))
-    s.newline()
-    s.write('module.exports = {')
-    with Indent(s):
-        for msg in msgs:
-            s.write('{}: {},'.format(msg, msg))
-    s.write('};')
+        s.write('export \'src/msgs/{}.dart\';'.format(msg))
     s.newline()
 
 
-def write_srv_index(s, srvs, pkg):
+def write_srv_export(s, srvs, pkg):
     "Writes an index for the messages"
-    s.write('"use strict";')
-    s.newline()
     for srv in srvs:
-        s.write('let {} = require(\'./{}.dart\')'.format(srv, srv))
-    s.newline()
-    s.write('module.exports = {')
-    with Indent(s):
-        for srv in srvs:
-            s.write('{}: {},'.format(srv, srv))
-    s.write('};')
+        s.write('export \'src/srvs/{}.dart\';'.format(srv))
     s.newline()
 
 
@@ -808,10 +738,10 @@ def write_message_definition(s, msg_context, spec):
             s.write('// Returns full string definition for message')
             definition = genmsg.compute_full_text(msg_context, spec)
             lines = definition.split('\n')
-            s.write('return `')
+            s.write('return \'\'\'')
             for line in lines:
                 s.write('{}'.format(line))
-            s.write('`;')
+            s.write('\'\'\';')
         s.write('}')
         s.newline()
 
@@ -843,7 +773,6 @@ def write_srv_component(s, spec, context, parent, search_path):
     write_ros_datatype(s, spec)
     write_md5sum(s, context, spec)
     write_message_definition(s, context, spec)
-    write_resolve(s, spec)
     s.write('};')
     s.newline()
     write_constants(s, spec)
@@ -926,9 +855,8 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     write_ros_datatype(s, spec)
     write_md5sum(s, msg_context, spec)
     write_message_definition(s, msg_context, spec)
-    write_resolve(s, spec)
     write_end(s, spec)
-    src_dir = output_dir + '/lib/src'
+    src_dir = output_dir + '/lib/src/msgs'
     if (not os.path.exists(src_dir)):
         # if we're being run concurrently, the above test can report false but os.makedirs can still fail if
         # another copy just created the directory
@@ -937,7 +865,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
         except OSError as e:
             pass
 
-    with open('%s/lib/src/%s.dart' % (output_dir, spec.short_name), 'w') as f:
+    with open('%s/lib/src/msgs/%s.dart' % (output_dir, spec.short_name), 'w') as f:
         f.write(io.getvalue() + "\n")
     io.close()
 
@@ -948,7 +876,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     ########################################
     io = StringIO()
     s = IndentedWriter(io)
-    write_msg_index(s, msgs, package, msg_context)
+    write_msg_export(s, msgs, package, msg_context)
     with open('{}/lib/msgs.dart'.format(output_dir), 'w') as f:
         f.write(io.getvalue())
     io.close()
@@ -960,9 +888,8 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     ########################################
     io = StringIO()
     s = IndentedWriter(io)
-    package_dir = os.path.dirname(output_dir)
-    write_package_index(s, package_dir)
-    with open('{}/pubspec.yaml'.format(package_dir), 'w') as f:
+    write_pubspec(s, output_dir)
+    with open('{}/pubspec.yaml'.format(output_dir), 'w') as f:
         f.write(io.getvalue())
     io.close()
 
@@ -979,6 +906,14 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
         load_srv_from_file(msg_context, '%s/%s%s' %
                            (srv_path, srv, ext), '%s/%s' % (package, srv))
 
+    src_dir = output_dir + '/lib/src/srvs'
+    if (not os.path.exists(src_dir)):
+        # if we're being run concurrently, the above test can report false but os.makedirs can still fail if
+        # another copy just created the directory
+        try:
+            os.makedirs(src_dir)
+        except OSError as e:
+            pass
     ########################################
     # 1. Write the .dart file
     ########################################
@@ -995,7 +930,7 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
     write_srv_component(s, spec.response, msg_context, spec, search_path)
     write_srv_end(s, msg_context, spec)
 
-    with open('%s/lib/src/%s.dart' % (output_dir, spec.short_name), 'w') as f:
+    with open('%s/lib/src/srvs/%s.dart' % (output_dir, spec.short_name), 'w') as f:
         f.write(io.getvalue())
     io.close()
 
@@ -1006,7 +941,7 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
     ########################################
     io = StringIO()
     s = IndentedWriter(io)
-    write_srv_index(s, srvs, package)
+    write_srv_export(s, srvs, package)
     with open('{}/lib/srvs.dart'.format(output_dir), 'w') as f:
         f.write(io.getvalue())
     io.close()
@@ -1018,8 +953,7 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
     ########################################
     io = StringIO()
     s = IndentedWriter(io)
-    package_dir = os.path.dirname(output_dir)
-    write_package_index(s, package_dir)
-    with open('{}/pubspec.yaml'.format(package_dir), 'w') as f:
+    write_pubspec(s, output_dir)
+    with open('{}/pubspec.yaml'.format(output_dir), 'w') as f:
         f.write(io.getvalue())
     io.close()
