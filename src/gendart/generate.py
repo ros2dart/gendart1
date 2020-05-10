@@ -21,15 +21,16 @@ import os
 import traceback
 import re
 from os.path import join as pjoin
-
-#import roslib.msgs
-#import roslib.srvs
-#import roslib.packages
-#import roslib.gentools
+from os.path import split as psplit
+# import roslib.msgs
+# import roslib.srvs
+# import roslib.packages
+# import roslib.gentools
 from genmsg import SrvSpec, MsgSpec, MsgContext
 from genmsg.msg_loader import load_srv_from_file, load_msg_by_type
 import genmsg.gentools
 from copy import deepcopy
+import glob
 
 try:
     from cStringIO import StringIO  # Python 2.x
@@ -320,9 +321,14 @@ def find_path_for_package(package):
 def find_requires(spec):
     found_packages = []
     local_deps = []
+    external_deps = {}
     for field in spec.parsed_fields():
         if not field.is_builtin:
             (field_type_package, msg_type) = field.base_type.split('/')
+            if field_type_package != spec.package:
+                if field_type_package not in external_deps.keys():
+                    external_deps[field_type_package] = []
+                external_deps[field_type_package].append(msg_type)
             if field_type_package in found_packages:
                 continue
             # else
@@ -332,7 +338,7 @@ def find_requires(spec):
             else:
                 found_packages.append(field_type_package)
 
-    return found_packages, local_deps
+    return found_packages, local_deps, external_deps
 
 
 def write_begin(s, spec, is_service=False):
@@ -344,7 +350,7 @@ def write_begin(s, spec, is_service=False):
             (spec.package, suffix), newline=False)
 
 
-def write_requires(s, spec, previous_packages=None, prev_deps=None, isSrv=False):
+def write_requires(s, spec, search_path, output_dir, previous_packages=None, prev_deps=None, isSrv=False):
     "Writes out the require fields"
     if previous_packages is None:
         s.write('import \'dart:convert\';')
@@ -356,7 +362,8 @@ def write_requires(s, spec, previous_packages=None, prev_deps=None, isSrv=False)
         prev_deps = []
     # find other message packages and other messages in this packages
     # that this message depends on
-    found_packages, local_deps = find_requires(spec)
+    found_packages, local_deps, external_deps = find_requires(spec)
+    print('External Dependencies: {}'.format(external_deps))
     # filter out previously found local deps
     local_deps = [dep for dep in local_deps if dep not in prev_deps]
 
@@ -373,10 +380,19 @@ def write_requires(s, spec, previous_packages=None, prev_deps=None, isSrv=False)
     found_packages = {
         package for package in found_packages if package not in previous_packages}
     for package in found_packages:
+        print('External Package: {}, messages: {}'.format(
+            package, external_deps[package]))
         # TODO: finder is only relevant to node - we should support an option to
         #   create a flat message package directory. The downside is that it requires
         #   copying files between workspaces.
-        s.write('final {0} = _finder(\'{0}\');'.format(package))
+        s.write('import \'package:{}/msgs.dart\';'.format(package))
+        (directory, pack) = psplit(output_dir)
+        path_package = find_path_from_cmake_path(
+            pjoin('share', package, 'msg'))
+        msgs = glob.glob(path_package + '/*.msg')
+        print(msgs)
+        generate_msg(package, msgs, pjoin(directory, package), search_path)
+
     s.newline()
     s.write('//-----------------------------------------------------------')
     s.newline()
@@ -888,7 +904,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     io = StringIO()
     s = IndentedWriter(io)
     write_begin(s, spec)
-    write_requires(s, spec)
+    write_requires(s, spec, search_path, output_dir)
     write_class(s, spec)
     write_serialize(s, spec)
     write_deserialize(s, spec)
@@ -963,8 +979,9 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
     s = IndentedWriter(io)
     write_begin(s, spec, True)
     found_packages, local_deps = write_requires(
-        s, spec.request, None, None, True)
-    write_requires(s, spec.response, found_packages, local_deps, True)
+        s, spec.request, search_path, output_dir, None, None, True)
+    write_requires(s, spec.response, search_path, output_dir,
+                   found_packages, local_deps, True)
     spec.request.actual_name = '%sRequest' % spec.short_name
     spec.response.actual_name = '%sResponse' % spec.short_name
     write_srv_component(s, spec.request, msg_context, spec, search_path)
