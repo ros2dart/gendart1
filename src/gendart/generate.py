@@ -172,12 +172,12 @@ def get_default_value(field, current_message_package):
             field_copy.is_array = False
             field_default = get_default_value(
                 field_copy, current_message_package)
-            return 'Array({}).fill({})'.format(field.array_len, field_default)
+            return 'List.generate({}, (_) => {})'.format(field.array_len, field_default)
     elif field.is_builtin:
         if is_string(field.type):
             return '\'\''
         elif is_time(field.type):
-            return '{secs: 0, nsecs: 0}'
+            return 'RosTime(secs: 0, nsecs: 0)'
         elif is_bool(field.type):
             return 'false'
         elif is_float(field.type):
@@ -363,9 +363,25 @@ def write_requires(s, spec, search_path, output_dir, previous_packages=None, pre
     # find other message packages and other messages in this packages
     # that this message depends on
     found_packages, local_deps, external_deps = find_requires(spec)
-    print('External Dependencies: {}'.format(external_deps))
+    # print('External Dependencies: {}'.format(external_deps))
     # filter out previously found local deps
     local_deps = [dep for dep in local_deps if dep not in prev_deps]
+    # filter out previously found packages
+    found_packages = {
+        package for package in found_packages if package not in previous_packages}
+    for package in found_packages:
+        # print('External Package: {}, messages: {}'.format(
+        # package, external_deps[package]))
+        # TODO: finder is only relevant to node - we should support an option to
+        #   create a flat message package directory. The downside is that it requires
+        #   copying files between workspaces.
+        s.write('import \'package:{}/msgs.dart\';'.format(package))
+        (directory, pack) = psplit(output_dir)
+        path_package = find_path_from_cmake_path(
+            pjoin('share', package, 'msg'))
+        msgs = glob.glob(path_package + '/*.msg')
+        # print(msgs)
+        generate_msg(package, msgs, pjoin(directory, package), search_path)
 
     # require mesages from this package
     # messages from this package need to be requried separately
@@ -375,23 +391,6 @@ def write_requires(s, spec, search_path, output_dir, previous_packages=None, pre
             s.write('import \'../msgs/{}.dart\';'.format(dep))
         else:
             s.write('import \'{}.dart\';'.format(dep))
-
-    # filter out previously found packages
-    found_packages = {
-        package for package in found_packages if package not in previous_packages}
-    for package in found_packages:
-        print('External Package: {}, messages: {}'.format(
-            package, external_deps[package]))
-        # TODO: finder is only relevant to node - we should support an option to
-        #   create a flat message package directory. The downside is that it requires
-        #   copying files between workspaces.
-        s.write('import \'package:{}/msgs.dart\';'.format(package))
-        (directory, pack) = psplit(output_dir)
-        path_package = find_path_from_cmake_path(
-            pjoin('share', package, 'msg'))
-        msgs = glob.glob(path_package + '/*.msg')
-        print(msgs)
-        generate_msg(package, msgs, pjoin(directory, package), search_path)
 
     s.newline()
     s.write('//-----------------------------------------------------------')
@@ -486,16 +485,24 @@ def serialize_builtin(t, val):
         return 'writer.writeInt16({})'.format(val)
     if t == 'int32':
         return 'writer.writeInt32({})'.format(val)
+    if t == 'int64':
+        return 'writer.writeInt64({})'.format(val)
     if t == 'uint8':
         return 'writer.writeUint8({})'.format(val)
     if t == 'uint16':
         return 'writer.writeUint16({})'.format(val)
     if t == 'uint32':
         return 'writer.writeUint32({})'.format(val)
+    if t == 'uint64':
+        return 'writer.writeUint64({})'.format(val)
     if t == 'float32':
         return 'writer.writeFloat32({})'.format(val)
     if t == 'float64':
         return 'writer.writeFloat64({})'.format(val)
+    if t == 'byte':
+        return 'writer.writeUint8({})'.format(val)
+    if t == 'char':
+        return 'writer.writeUint8({})'.format(val)
     if t == 'bool':
         return 'writer.writeUint8({} == false ? 0 : 1)'.format(val)
     print(t)
@@ -589,16 +596,24 @@ def deserialize_builtin(t):
         return 'reader.readInt16()'
     if t == 'int32':
         return 'reader.readInt32()'
+    if t == 'int64':
+        return 'reader.readInt64()'
     if t == 'uint8':
         return 'reader.readUint8()'
     if t == 'uint16':
         return 'reader.readUint16()'
     if t == 'uint32':
         return 'reader.readUint32()'
+    if t == 'uint64':
+        return 'reader.readUint64()'
     if t == 'float32':
         return 'reader.readFloat32()'
     if t == 'float64':
         return 'reader.readFloat64()'
+    if t == 'byte':
+        return 'reader.readUint8()'
+    if t == 'char':
+        return 'reader.readUint8()'
     if t == 'bool':
         return 'reader.readUint8() != 0'
     print(t)
@@ -731,7 +746,7 @@ def write_get_message_size(s, spec, search_path):
         s.newline()
 
 
-def write_pubspec(s, package_dir):
+def write_pubspec(s, package_dir, external_deps):
     package = os.path.basename(package_dir)
     s.write('name: {}'.format(package))
     # msgExists = os.path.exists(pjoin(package_dir, 'lib/msgs.dart'))
@@ -748,12 +763,19 @@ def write_pubspec(s, package_dir):
             s.write('git:')
             with Indent(s):
                 s.write('url: https://github.com/TimWhiting/dartros')
+        for dep in external_deps:
+            s.write('{}:'.format(dep))
+            with Indent(s):
+                s.write('path: ../{}'.format(dep))
+
     s.newline()
 
 
 def write_msg_export(s, msgs, pkg, context):
     "Writes an index for the messages"
     for msg in msgs:
+        if msg == 'String':
+            msg = 'StringMessage'
         s.write('export \'src/msgs/{}.dart\';'.format(msg))
     s.newline()
 
@@ -858,6 +880,8 @@ def generate_msg(pkg, files, out_dir, search_path):
         infile = os.path.basename(f)
         full_type = genmsg.gentools.compute_full_type_name(pkg, infile)
         spec = genmsg.msg_loader.load_msg_from_file(msg_context, f, full_type)
+        if spec.short_name == 'String':
+            spec.short_name = 'StringMessage'
         generate_msg_from_spec(msg_context, spec, search_path, out_dir, pkg)
 
 
@@ -904,7 +928,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     io = StringIO()
     s = IndentedWriter(io)
     write_begin(s, spec)
-    write_requires(s, spec, search_path, output_dir)
+    external_deps, _ = write_requires(s, spec, search_path, output_dir)
     write_class(s, spec)
     write_serialize(s, spec)
     write_deserialize(s, spec)
@@ -945,7 +969,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     ########################################
     io = StringIO()
     s = IndentedWriter(io)
-    write_pubspec(s, output_dir)
+    write_pubspec(s, output_dir, external_deps)
     with open('{}/pubspec.yaml'.format(output_dir), 'w') as f:
         f.write(io.getvalue())
     io.close()
@@ -1011,7 +1035,7 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
     ########################################
     io = StringIO()
     s = IndentedWriter(io)
-    write_pubspec(s, output_dir)
+    write_pubspec(s, output_dir, found_packages)
     with open('{}/pubspec.yaml'.format(output_dir), 'w') as f:
         f.write(io.getvalue())
     io.close()
