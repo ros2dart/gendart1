@@ -746,29 +746,7 @@ def write_get_message_size(s, spec, search_path):
         s.newline()
 
 
-def write_pubspec(s, package_dir, external_deps):
-    package = os.path.basename(package_dir)
-    s.write('name: {}'.format(package))
-    # msgExists = os.path.exists(pjoin(package_dir, 'lib/msgs.dart'))
-    # srvExists = os.path.exists(pjoin(package_dir, 'lib/srvs.dart'))
-    s.write('environment:')
-    with Indent(s):
-        s.write('sdk: ">=2.7.0 < 3.0.0"')
-    s.newline()
-    s.write('dependencies:')
-    with Indent(s):
-        s.write('buffer: any')
-        s.write('dartros: ')
-        with Indent(s):
-            s.write('git:')
-            with Indent(s):
-                s.write('url: https://github.com/TimWhiting/dartros')
-        for dep in external_deps:
-            s.write('{}:'.format(dep))
-            with Indent(s):
-                s.write('path: ../{}'.format(dep))
 
-    s.newline()
 
 
 def write_msg_export(s, msgs, pkg, context):
@@ -869,6 +847,58 @@ def write_srv_end(s, context, spec):
     s.write('}')
     s.newline()
 
+def get_all_dependent_pkgs(search_path, context, package, indir):
+    msgs = msg_list_full_path(package, search_path, '.msg')
+    srvs = msg_list_full_path(package, search_path, '.srv')
+    all_pkgs = set()
+    for msg in msgs:
+        msg_name = os.path.basename(msg)
+        full_type = genmsg.gentools.compute_full_type_name(package, msg_name)
+        spec = genmsg.msg_loader.load_msg_from_file(context, msg, full_type)
+        pkgs, _, _ = find_requires(spec)
+        for pkg in pkgs:
+            all_pkgs.add(pkg)
+    for msg in srvs:
+        msg_name = os.path.basename(msg)
+        full_type = genmsg.gentools.compute_full_type_name(package, msg_name)
+        spec = genmsg.msg_loader.load_srv_from_file(context, msg, full_type)
+        pkgs, _, _ = find_requires(spec)
+        for pkg in pkgs:
+            all_pkgs.add(pkg)
+    # print('Package {}'.format(package))
+    # print('Package dependencies {}'.format(all_pkgs))
+    if package in all_pkgs:
+        all_pkgs.remove(package)
+    return all_pkgs
+
+def write_pubspec(s, package, search_path, context, indir):
+    s.write('name: {}'.format(package))
+    msgs = msg_list(package, search_path, '.msg')
+    for m in msgs:
+        genmsg.load_msg_by_type(context, '%s/%s' %
+                                (package, m), search_path)
+    srvs = msg_list(package, search_path, '.srv')
+    deps = get_all_dependent_pkgs(search_path, context, package, indir)
+    # msgExists = os.path.exists(pjoin(package_dir, 'lib/msgs.dart'))
+    # srvExists = os.path.exists(pjoin(package_dir, 'lib/srvs.dart'))
+    s.write('environment:')
+    with Indent(s):
+        s.write('sdk: ">=2.7.0 < 3.0.0"')
+    s.newline()
+    s.write('dependencies:')
+    with Indent(s):
+        s.write('buffer: any')
+        s.write('dartros: ')
+        with Indent(s):
+            s.write('git:')
+            with Indent(s):
+                s.write('url: https://github.com/TimWhiting/dartros')
+        for dep in deps:
+            s.write('{}:'.format(dep))
+            with Indent(s):
+                s.write('path: ../{}'.format(dep))
+
+    s.newline()
 
 def generate_msg(pkg, files, out_dir, search_path):
     """
@@ -883,6 +913,19 @@ def generate_msg(pkg, files, out_dir, search_path):
         if spec.short_name == 'String':
             spec.short_name = 'StringMessage'
         generate_msg_from_spec(msg_context, spec, search_path, out_dir, pkg)
+    indir = os.path.dirname(files[0])
+    ########################################
+    # 3. Write the package _index.dart file
+    # This is being rewritten once per msg
+    # file, which is inefficient
+    ########################################
+   
+    io = StringIO()
+    s = IndentedWriter(io)
+    write_pubspec(s, pkg, search_path, msg_context, indir)
+    with open('{}/pubspec.yaml'.format(out_dir), 'w') as f:
+        f.write(io.getvalue())
+    io.close()
 
 
 def generate_srv(pkg, files, out_dir, search_path):
@@ -896,6 +939,19 @@ def generate_srv(pkg, files, out_dir, search_path):
         full_type = genmsg.gentools.compute_full_type_name(pkg, infile)
         spec = genmsg.msg_loader.load_srv_from_file(msg_context, f, full_type)
         generate_srv_from_spec(msg_context, spec, search_path, out_dir, pkg, f)
+    indir = os.path.dirname(files[0])
+    ########################################
+    # 3. Write the package _index.dart file
+    # This is being rewritten once per msg
+    # file, which is inefficient
+    ########################################
+    
+    io = StringIO()
+    s = IndentedWriter(io)
+    write_pubspec(s, pkg, search_path, msg_context, indir)
+    with open('{}/pubspec.yaml'.format(out_dir), 'w') as f:
+        f.write(io.getvalue())
+    io.close()
 
 
 def msg_list(pkg, search_path, ext):
@@ -904,6 +960,13 @@ def msg_list(pkg, search_path, ext):
     for d in dir_list:
         files.extend([f for f in os.listdir(d) if f.endswith(ext)])
     return [f[:-len(ext)] for f in files]
+
+def msg_list_full_path(pkg, search_path, ext):
+    dir_list = search_path[pkg]
+    files = []
+    for d in dir_list:
+        files.extend([pjoin(d,f) for f in os.listdir(d) if f.endswith(ext)])
+    return files
 
 
 def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, msgs=None):
@@ -949,32 +1012,9 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     with open('%s/lib/src/msgs/%s.dart' % (output_dir, spec.short_name), 'w') as f:
         f.write(io.getvalue() + "\n")
     io.close()
+    
 
-    ########################################
-    # 3. Write the msg/_index.dart file
-    # This is being rewritten once per msg
-    # file, which is inefficient
-    ########################################
-    io = StringIO()
-    s = IndentedWriter(io)
-    write_msg_export(s, msgs, package, msg_context)
-    with open('{}/lib/msgs.dart'.format(output_dir), 'w') as f:
-        f.write(io.getvalue())
-    io.close()
-
-    ########################################
-    # 3. Write the package _index.dart file
-    # This is being rewritten once per msg
-    # file, which is inefficient
-    ########################################
-    io = StringIO()
-    s = IndentedWriter(io)
-    write_pubspec(s, output_dir, external_deps)
-    with open('{}/pubspec.yaml'.format(output_dir), 'w') as f:
-        f.write(io.getvalue())
-    io.close()
-
-# t0 most of this could probably be refactored into being shared with messages
+# TODO most of this could probably be refactored into being shared with messages
 
 
 def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, path):
@@ -1025,17 +1065,5 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
     s = IndentedWriter(io)
     write_srv_export(s, srvs, package)
     with open('{}/lib/srvs.dart'.format(output_dir), 'w') as f:
-        f.write(io.getvalue())
-    io.close()
-
-    ########################################
-    # 3. Write the package _index.dart file
-    # This is being rewritten once per msg
-    # file, which is inefficient
-    ########################################
-    io = StringIO()
-    s = IndentedWriter(io)
-    write_pubspec(s, output_dir, found_packages)
-    with open('{}/pubspec.yaml'.format(output_dir), 'w') as f:
         f.write(io.getvalue())
     io.close()
