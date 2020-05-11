@@ -952,6 +952,13 @@ def generate_srv(pkg, files, out_dir, search_path):
     with open('{}/pubspec.yaml'.format(out_dir), 'w') as f:
         f.write(io.getvalue())
     io.close()
+    import subprocess
+    try: 
+        subprocess.check_output('which pub', shell=True)
+        p = subprocess.Popen(['pub', 'upgrade'], cwd=out_dir, stdout=subprocess.PIPE)
+        p.wait()
+    except subprocess.CalledProcessError as e:
+      pass
 
 
 def msg_list(pkg, search_path, ext):
