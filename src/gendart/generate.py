@@ -467,7 +467,7 @@ def write_serialize_length_check(s, field):
         '// Check that the constant length array field [{}] has the right length'.format(field.name))
     s.write('if ({}.length != {}) {{'.format(field.name, field.array_len))
     with Indent(s):
-        s.write('throw Error(\'Unable to serialize array field {} - length must be {}\')'.format(
+        s.write('throw Exception(\'Unable to serialize array field {} - length must be {}\');'.format(
             field.name, field.array_len))
     s.write('}')
 
@@ -1063,6 +1063,7 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
     ########################################
     io = StringIO()
     s = IndentedWriter(io)
+    print(srvs)
     write_srv_export(s, srvs, package)
     with open('{}/lib/srvs.dart'.format(output_dir), 'w') as f:
         f.write(io.getvalue())
