@@ -1063,7 +1063,7 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
     ########################################
     io = StringIO()
     s = IndentedWriter(io)
-    print(srvs)
+    # print(srvs)
     write_srv_export(s, srvs, package)
     with open('{}/lib/srvs.dart'.format(output_dir), 'w') as f:
         f.write(io.getvalue())
