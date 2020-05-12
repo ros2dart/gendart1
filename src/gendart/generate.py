@@ -768,7 +768,7 @@ def write_srv_export(s, srvs, pkg):
 
 def write_ros_datatype(s, spec):
     with Indent(s):
-        s.write('static String datatype() {')
+        s.write('String datatype() {')
         with Indent(s):
             s.write('// Returns string type for a %s object' %
                     spec.component_type)
@@ -780,7 +780,7 @@ def write_ros_datatype(s, spec):
 def write_md5sum(s, msg_context, spec, parent=None):
     md5sum = genmsg.compute_md5(msg_context, parent or spec)
     with Indent(s):
-        s.write('static String md5sum() {')
+        s.write('String md5sum() {')
         with Indent(s):
             # t2 this should print 'service' instead of 'message' if it's a service request or response
             s.write('//Returns md5sum for a message object')
@@ -791,7 +791,7 @@ def write_md5sum(s, msg_context, spec, parent=None):
 
 def write_message_definition(s, msg_context, spec):
     with Indent(s):
-        s.write('static String messageDefinition() {')
+        s.write('String messageDefinition() {')
         with Indent(s):
             s.write('// Returns full string definition for message')
             definition = genmsg.compute_full_text(msg_context, spec)
