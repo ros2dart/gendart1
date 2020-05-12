@@ -797,9 +797,10 @@ def write_message_definition(s, msg_context, spec):
             definition = genmsg.compute_full_text(msg_context, spec)
             lines = definition.split('\n')
             s.write('return \'\'\'')
+            
             for line in lines:
-                s.write('{}'.format(line))
-            s.write('\'\'\';')
+                s.write('{}\n'.format(line), indent=False)
+            s.write('\'\'\';', indent=False)
         s.write('}')
         s.newline()
 
