@@ -407,8 +407,8 @@ def write_msg_constructor_field(s, spec, field):
 
 
 def write_msg_constructor_initializers(s, spec, field, last):
-    s.write('{} = {}{}'.format(
-            field.name, get_default_value(field, spec.package), ',' if not last else ';'))
+    s.write('this.{} = {} ?? {}{}'.format(
+            field.name, field.name, get_default_value(field, spec.package), ',' if not last else ';'))
 
 
 def write_class(s, spec):
