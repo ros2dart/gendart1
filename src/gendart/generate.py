@@ -412,6 +412,7 @@ def write_msg_constructor_initializers(s, spec, field, last):
 
 
 def write_class(s, spec):
+    s.write('@rosDeserializeable')
     s.write('class {} {{'.format(spec.actual_name))
 
     with Indent(s):
