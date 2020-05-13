@@ -31,6 +31,7 @@ from genmsg.msg_loader import load_srv_from_file, load_msg_by_type
 import genmsg.gentools
 from copy import deepcopy
 import glob
+import time
 
 try:
     from cStringIO import StringIO  # Python 2.x
@@ -40,7 +41,7 @@ except ImportError:
 ############################################################
 # Built in types
 ############################################################
-
+generated_packages = set()
 
 def is_fixnum(t):
     return t in ['int8', 'uint8', 'int16', 'uint16']
@@ -381,7 +382,18 @@ def write_requires(s, spec, search_path, output_dir, previous_packages=None, pre
             pjoin('share', package, 'msg'))
         msgs = glob.glob(path_package + '/*.msg')
         # print(msgs)
-        generate_msg(package, msgs, pjoin(directory, package), search_path)
+        other_package = '{}/pubspec.yaml'.format(pjoin(directory, package))
+        # print('Other package {}'.format(other_package))
+        if os.path.isfile(other_package) and time.time() - os.path.getmtime(other_package) < 10: # If was created less than 5 seconds ago
+            pass
+            # print(t)
+            # print(time.time())
+            # print('Skipping package generation for {}'.format(package))
+        elif package not in generated_packages:
+            generate_msg(package, msgs, pjoin(directory, package), search_path)
+        else:
+            pass
+            # print("Skipping package generation for {}".format(package))
 
     # require mesages from this package
     # messages from this package need to be requried separately
@@ -410,17 +422,22 @@ def write_msg_constructor_initializers(s, spec, field, last):
     s.write('this.{} = {} ?? {}{}'.format(
             field.name, field.name, get_default_value(field, spec.package), ',' if not last else ';'))
 
+def write_msg_call_initializers(s, spec, field, last):
+    s.write('{}: {}{}'.format(
+            field.name, field.name, ',' ))
+
 
 def write_class(s, spec):
     s.write('@rosDeserializeable')
-    s.write('class {} {{'.format(spec.actual_name))
+    s.write('class {} extends RosMessage {{'.format(spec.actual_name))
 
     with Indent(s):
+
         for field in spec.parsed_fields():
             write_msg_fields(s, spec, field)
             s.newline()
         # Constructor
-        # TODO: add optional object argument
+        s.write('static {} empty$ = {}();'.format(spec.actual_name, spec.actual_name))
 
         num_fields = len(spec.parsed_fields())
         if num_fields > 0:
@@ -434,6 +451,23 @@ def write_class(s, spec):
                     s, spec, field, num_fields-1 == i)
         else:
             s.write('{}();'.format(spec.actual_name))
+
+        s.newline()
+
+        num_fields = len(spec.parsed_fields())
+        if num_fields > 0:
+            s.write('{} call({{ '.format(spec.actual_name))
+            with Indent(s):
+                for field in spec.parsed_fields():
+                    write_msg_constructor_field(s, spec, field)
+            s.write('}}) => {}('.format(spec.actual_name))
+            for i, field in enumerate(spec.parsed_fields()):
+                write_msg_call_initializers(
+                    s, spec, field, num_fields-1 == i)
+            s.write(');')
+            
+        else:
+            s.write('{} call() => {}();'.format(spec.actual_name, spec.actual_name))
 
     s.newline()
 
@@ -580,9 +614,9 @@ def write_deserialize_complex(s, f, thisPackage):
             s.write('final len = {};'.format(f.array_len))
 
         s.write(
-            'data.{} = List.generate(len, (_) => {}.deserialize(reader));'.format(f.name, msg_type))
+            'data.{} = List.generate(len, (_) => {}.empty$.deserialize(reader));'.format(f.name, msg_type))
     else:
-        s.write('data.{} = {}.deserialize(reader);'.format(
+        s.write('data.{} = {}.empty$.deserialize(reader);'.format(
             f.name, msg_type))
 
 
@@ -643,8 +677,8 @@ def write_deserialize(s, spec):
     Write the deserialize method
     """
     with Indent(s):
-        s.write('factory {}.deserialize(ByteDataReader reader) {{'.format(
-            spec.short_name))
+        s.write('{} deserialize(ByteDataReader reader) {{'.format(
+            spec.short_name, spec.short_name))
         with Indent(s):
             s.write(
                 '//deserializes a message object of type {}'.format(spec.short_name))
@@ -755,12 +789,21 @@ def write_msg_export(s, msgs, pkg, context):
     for msg in msgs:
         if msg == 'String':
             msg = 'StringMessage'
+        s.write('import \'src/msgs/{}.dart\' as {}_msg;'.format(msg,msg))
         s.write('export \'src/msgs/{}.dart\';'.format(msg))
+    s.newline()
+    s.write('class {} {{'.format(pkg))
+    for msg in msgs:
+        if msg == 'String':
+            msg = 'StringMessage'
+        s.write('static {}_msg.{} {} = {}_msg.{}.empty$;'.format(msg,msg,msg,msg,msg))
+    s.write('}')
     s.newline()
 
 
 def write_srv_export(s, srvs, pkg):
     "Writes an index for the messages"
+    # TODO: Add srv obfuscation for getting serializers
     for srv in srvs:
         s.write('export \'src/srvs/{}.dart\';'.format(srv))
     s.newline()
@@ -768,7 +811,7 @@ def write_srv_export(s, srvs, pkg):
 
 def write_ros_datatype(s, spec):
     with Indent(s):
-        s.write('String datatype() {')
+        s.write('String get fullType {')
         with Indent(s):
             s.write('// Returns string type for a %s object' %
                     spec.component_type)
@@ -780,7 +823,7 @@ def write_ros_datatype(s, spec):
 def write_md5sum(s, msg_context, spec, parent=None):
     md5sum = genmsg.compute_md5(msg_context, parent or spec)
     with Indent(s):
-        s.write('String md5sum() {')
+        s.write('String get md5sum {')
         with Indent(s):
             # t2 this should print 'service' instead of 'message' if it's a service request or response
             s.write('//Returns md5sum for a message object')
@@ -791,7 +834,7 @@ def write_md5sum(s, msg_context, spec, parent=None):
 
 def write_message_definition(s, msg_context, spec):
     with Indent(s):
-        s.write('String messageDefinition() {')
+        s.write('String get messageDefinition {')
         with Indent(s):
             s.write('// Returns full string definition for message')
             definition = genmsg.compute_full_text(msg_context, spec)
@@ -843,8 +886,8 @@ def write_srv_end(s, context, spec):
         s.write('static {}Request request() => {}Request();'.format(name, name))
         s.write('static {}Response response() => {}Response();'.format(name, name))
         md5sum = genmsg.compute_md5(context, spec)
-        s.write('static String md5sum() => \'{}\';'.format(md5sum))
-        s.write('static String datatype() => \'{}\';'.format(
+        s.write('static String get md5sum => \'{}\';'.format(md5sum))
+        s.write('static String get datatype => \'{}\';'.format(
             spec.full_name))
     s.write('}')
     s.newline()
@@ -906,6 +949,12 @@ def generate_msg(pkg, files, out_dir, search_path):
     """
     Generate dart code for all messages in a package
     """
+    # print('Generated packages {}'.format(generated_packages))
+    if pkg in generated_packages:
+        # print('Skipping package generation for {}'.format(pkg))
+        return
+    
+
     msg_context = MsgContext.create_default()
     for f in files:
         f = os.path.abspath(f)
@@ -916,18 +965,39 @@ def generate_msg(pkg, files, out_dir, search_path):
             spec.short_name = 'StringMessage'
         generate_msg_from_spec(msg_context, spec, search_path, out_dir, pkg)
     indir = os.path.dirname(files[0])
+    
     ########################################
     # 3. Write the package _index.dart file
     # This is being rewritten once per msg
     # file, which is inefficient
     ########################################
+
    
     io = StringIO()
     s = IndentedWriter(io)
     write_pubspec(s, pkg, search_path, msg_context, indir)
-    with open('{}/pubspec.yaml'.format(out_dir), 'w') as f:
-        f.write(io.getvalue())
+    package_update = True
+    pubspec = '{}/pubspec.yaml'.format(out_dir)
+    mode = 'w+'
+    if os.path.isfile(pubspec):
+        mode = 'r+'
+    with open(pubspec, mode) as f:
+        if f.read() == io.getvalue() and time.time() - os.path.getmtime(pubspec) < 5:
+            # print('Pubspec identical')
+            package_update = False
+        else:
+            f.seek(0)
+            f.write(io.getvalue())
     io.close()
+    if package_update:
+        import subprocess
+        try:
+            # print('running pub upgrade in {}'.format(out_dir))
+            subprocess.check_output('which pub', shell=True)
+            p = subprocess.Popen(['pub', 'upgrade'], cwd=out_dir, stdout=subprocess.PIPE)
+            p.wait()
+        except subprocess.CalledProcessError as e:
+            pass
 
 
 def generate_srv(pkg, files, out_dir, search_path):
@@ -951,16 +1021,28 @@ def generate_srv(pkg, files, out_dir, search_path):
     io = StringIO()
     s = IndentedWriter(io)
     write_pubspec(s, pkg, search_path, msg_context, indir)
-    with open('{}/pubspec.yaml'.format(out_dir), 'w') as f:
-        f.write(io.getvalue())
+    package_update = True
+    pubspec = '{}/pubspec.yaml'.format(out_dir)
+    mode = 'w+'
+    if os.path.isfile(pubspec):
+        mode = 'r+'
+    with open(pubspec, mode) as f:
+        if f.read() == io.getvalue() and time.time() - os.path.getmtime(pubspec) < 5:
+            # print('Pubspec identical')
+            package_update = False
+        else:
+            f.seek(0)
+            f.write(io.getvalue())
     io.close()
-    import subprocess
-    try: 
-        subprocess.check_output('which pub', shell=True)
-        p = subprocess.Popen(['pub', 'upgrade'], cwd=out_dir, stdout=subprocess.PIPE)
-        p.wait()
-    except subprocess.CalledProcessError as e:
-      pass
+    if package_update:
+        import subprocess
+        try:
+            # print('running pub upgrade in {}'.format(out_dir))
+            subprocess.check_output('which pub', shell=True)
+            p = subprocess.Popen(['pub', 'upgrade'], cwd=out_dir, stdout=subprocess.PIPE)
+            p.wait()
+        except subprocess.CalledProcessError as e:
+            pass
 
 
 def msg_list(pkg, search_path, ext):
@@ -1022,7 +1104,18 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
         f.write(io.getvalue() + "\n")
     io.close()
     
-
+    ########################################
+    # 3. Write the msg/_index.dart file
+    # This is being rewritten once per msg
+    # file, which is inefficient
+    ########################################
+    io = StringIO()
+    s = IndentedWriter(io)
+    # print(srvs)
+    write_msg_export(s, msgs, package, search_path)
+    with open('{}/lib/msgs.dart'.format(output_dir), 'w') as f:
+        f.write(io.getvalue())
+    io.close()
 # TODO most of this could probably be refactored into being shared with messages
 
 
