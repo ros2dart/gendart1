@@ -384,7 +384,7 @@ def write_requires(s, spec, search_path, output_dir, previous_packages=None, pre
         # print(msgs)
         other_package = '{}/pubspec.yaml'.format(pjoin(directory, package))
         # print('Other package {}'.format(other_package))
-        if os.path.isfile(other_package) and time.time() - os.path.getmtime(other_package) < 10: # If was created less than 5 seconds ago
+        if os.path.isfile(other_package) and time.time() - os.path.getmtime(other_package) < 5: # If was created less than 5 seconds ago
             pass
             # print(t)
             # print(time.time())
@@ -428,8 +428,8 @@ def write_msg_call_initializers(s, spec, field, last):
 
 
 def write_class(s, spec):
-    s.write('@rosDeserializeable')
-    s.write('class {} extends RosMessage {{'.format(spec.actual_name))
+    # s.write('@rosDeserializeable')
+    s.write('class {} extends RosMessage<{}> {{'.format(spec.actual_name, spec.actual_name))
 
     with Indent(s):
 
