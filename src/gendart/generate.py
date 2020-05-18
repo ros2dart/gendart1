@@ -677,6 +677,7 @@ def write_deserialize(s, spec):
     Write the deserialize method
     """
     with Indent(s):
+        s.write('@override')
         s.write('{} deserialize(ByteDataReader reader) {{'.format(
             spec.short_name, spec.short_name))
         with Indent(s):
@@ -805,12 +806,19 @@ def write_srv_export(s, srvs, pkg):
     "Writes an index for the messages"
     # TODO: Add srv obfuscation for getting serializers
     for srv in srvs:
+        s.write('import \'src/srvs/{}.dart\' as {}_srv;'.format(srv, srv))
         s.write('export \'src/srvs/{}.dart\';'.format(srv))
+    s.newline()
+    s.write('class {} {{'.format(pkg))
+    for srv in srvs:
+        s.write('static {}_srv.{} {} = {}_srv.{}.empty$;'.format(srv,srv,srv,srv,srv))
+    s.write('}')
     s.newline()
 
 
 def write_ros_datatype(s, spec):
     with Indent(s):
+        s.write('@override')
         s.write('String get fullType {')
         with Indent(s):
             s.write('// Returns string type for a %s object' %
@@ -823,6 +831,7 @@ def write_ros_datatype(s, spec):
 def write_md5sum(s, msg_context, spec, parent=None):
     md5sum = genmsg.compute_md5(msg_context, parent or spec)
     with Indent(s):
+        s.write('@override')
         s.write('String get md5sum {')
         with Indent(s):
             # t2 this should print 'service' instead of 'message' if it's a service request or response
@@ -834,6 +843,7 @@ def write_md5sum(s, msg_context, spec, parent=None):
 
 def write_message_definition(s, msg_context, spec):
     with Indent(s):
+        s.write('@override')
         s.write('String get messageDefinition {')
         with Indent(s):
             s.write('// Returns full string definition for message')
@@ -881,13 +891,18 @@ def write_srv_component(s, spec, context, parent, search_path):
 
 def write_srv_end(s, context, spec):
     name = spec.short_name
-    s.write('class {} {{'.format(name))
+    s.write('class {} extends RosServiceMessage<{}Request, {}Response> {{'.format(name, name, name))
     with Indent(s):
-        s.write('static {}Request request() => {}Request();'.format(name, name))
-        s.write('static {}Response response() => {}Response();'.format(name, name))
+        s.write('static final empty$ = {}();'.format(name))
+        s.write('@override')
+        s.write('{}Request get request => {}Request.empty$;'.format(name, name))
+        s.write('@override')
+        s.write('{}Response get response => {}Response.empty$;'.format(name, name))
         md5sum = genmsg.compute_md5(context, spec)
-        s.write('static String get md5sum => \'{}\';'.format(md5sum))
-        s.write('static String get datatype => \'{}\';'.format(
+        s.write('@override')
+        s.write('String get md5sum => \'{}\';'.format(md5sum))
+        s.write('@override')
+        s.write('String get fullType => \'{}\';'.format(
             spec.full_name))
     s.write('}')
     s.newline()
