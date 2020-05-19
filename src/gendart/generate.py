@@ -29,7 +29,7 @@ from os.path import split as psplit
 from genmsg import SrvSpec, MsgSpec, MsgContext
 from genmsg.msg_loader import load_srv_from_file, load_msg_by_type
 import genmsg.gentools
-from copy import deepcopy
+from copy import copy, deepcopy
 import glob
 import time
 
@@ -378,21 +378,7 @@ def write_requires(s, spec, search_path, output_dir, previous_packages=None, pre
         #   copying files between workspaces.
         s.write('import \'package:{}/msgs.dart\';'.format(package))
         (directory, pack) = psplit(output_dir)
-        path_package = find_path_from_cmake_path(
-            pjoin('share', package, 'msg'))
-        msgs = glob.glob(path_package + '/*.msg')
-        # print(msgs)
-        other_package = '{}/pubspec.yaml'.format(pjoin(directory, package))
-        # print('Other package {}'.format(other_package))
-        if os.path.isfile(other_package) and time.time() - os.path.getmtime(other_package) < 5: # If was created less than 5 seconds ago
-            pass
-            # print(t)
-            # print(time.time())
-            # print('Skipping package generation for {}'.format(package))
-        elif package not in generated_packages:
-            generate_msg(package, msgs, pjoin(directory, package), search_path)
-        else:
-            pass
+        generate_all_msgs_for_package(package, directory, search_path)
             # print("Skipping package generation for {}".format(package))
 
     # require mesages from this package
@@ -960,6 +946,24 @@ def write_pubspec(s, package, search_path, context, indir):
 
     s.newline()
 
+
+def generate_all_msgs_for_package(package, output_dir, search_path):
+    path_package = find_path_from_cmake_path(
+            pjoin('share', package, 'msg'))
+    msgs = glob.glob(path_package + '/*.msg')
+    # print(msgs)
+    other_package = '{}/pubspec.yaml'.format(pjoin(output_dir, package))
+    # print('Other package {}'.format(other_package))
+    if os.path.isfile(other_package) and time.time() - os.path.getmtime(other_package) < 5: # If was created less than 5 seconds ago
+        pass
+        # print(t)
+        # print(time.time())
+        # print('Skipping package generation for {}'.format(package))
+    elif package not in generated_packages:
+        generate_msg(package, msgs, pjoin(output_dir, package), search_path)
+    else:
+        pass
+
 def generate_msg(pkg, files, out_dir, search_path):
     """
     Generate dart code for all messages in a package
@@ -971,6 +975,7 @@ def generate_msg(pkg, files, out_dir, search_path):
     
 
     msg_context = MsgContext.create_default()
+    
     for f in files:
         f = os.path.abspath(f)
         infile = os.path.basename(f)
@@ -1013,6 +1018,16 @@ def generate_msg(pkg, files, out_dir, search_path):
             p.wait()
         except subprocess.CalledProcessError as e:
             pass
+            
+    (directory, pack) = psplit(out_dir)
+    if len(search_path.keys()) == 0:
+        return
+    for package in search_path.keys():
+        if package != pkg:
+            # new_search = deepcopy(search_path)
+            # new_search.pop(package)
+            generate_all_msgs_for_package(package, directory, search_path)
+    
 
 
 def generate_srv(pkg, files, out_dir, search_path):
