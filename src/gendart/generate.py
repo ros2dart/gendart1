@@ -401,7 +401,7 @@ def write_msg_fields(s, spec, field):
 
 
 def write_msg_constructor_field(s, spec, field):
-    s.write('{},'.format(field.name))
+    s.write('{} {},'.format(get_type(field), field.name))
 
 
 def write_msg_constructor_initializers(s, spec, field, last):
@@ -409,8 +409,8 @@ def write_msg_constructor_initializers(s, spec, field, last):
             field.name, field.name, get_default_value(field, spec.package), ',' if not last else ';'))
 
 def write_msg_call_initializers(s, spec, field, last):
-    s.write('{}: {}{}'.format(
-            field.name, field.name, ',' ))
+    s.write('{}: {},'.format(
+            field.name, field.name ))
 
 
 def write_class(s, spec):
@@ -919,6 +919,7 @@ def get_all_dependent_pkgs(search_path, context, package, indir):
 
 def write_pubspec(s, package, search_path, context, indir):
     s.write('name: {}'.format(package))
+    s.write('description: A ros {} message package for dartros'.format(package))
     msgs = msg_list(package, search_path, '.msg')
     for m in msgs:
         genmsg.load_msg_by_type(context, '%s/%s' %
