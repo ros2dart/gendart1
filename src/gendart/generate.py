@@ -933,12 +933,8 @@ def write_pubspec(s, package, search_path, context, indir):
     s.newline()
     s.write('dependencies:')
     with Indent(s):
-        s.write('buffer: any')
-        s.write('dartros: ')
-        with Indent(s):
-            s.write('git:')
-            with Indent(s):
-                s.write('url: https://github.com/TimWhiting/dartros')
+        s.write('buffer: any') 
+        s.write('dartros: any')
         for dep in deps:
             s.write('{}:'.format(dep))
             with Indent(s):
@@ -1005,11 +1001,10 @@ def generate_msg(pkg, files, out_dir, search_path):
         if f.read() == io.getvalue() and time.time() - os.path.getmtime(pubspec) < 5:
             # print('Pubspec identical')
             package_update = False
-        else:
-            f.seek(0)
-            f.write(io.getvalue())
-    io.close()
+    
     if package_update:
+        with open(pubspec, 'w+') as f:
+            f.write(io.getvalue())
         import subprocess
         try:
             # print('running pub upgrade in {}'.format(out_dir))
@@ -1018,7 +1013,8 @@ def generate_msg(pkg, files, out_dir, search_path):
             p.wait()
         except subprocess.CalledProcessError as e:
             pass
-            
+
+    io.close()
     (directory, pack) = psplit(out_dir)
     if len(search_path.keys()) == 0:
         return
@@ -1060,11 +1056,10 @@ def generate_srv(pkg, files, out_dir, search_path):
         if f.read() == io.getvalue() and time.time() - os.path.getmtime(pubspec) < 5:
             # print('Pubspec identical')
             package_update = False
-        else:
-            f.seek(0)
-            f.write(io.getvalue())
-    io.close()
+    
     if package_update:
+        with open(pubspec, 'w+') as f:
+            f.write(io.getvalue())
         import subprocess
         try:
             # print('running pub upgrade in {}'.format(out_dir))
@@ -1073,7 +1068,7 @@ def generate_srv(pkg, files, out_dir, search_path):
             p.wait()
         except subprocess.CalledProcessError as e:
             pass
-
+    io.close()
 
 def msg_list(pkg, search_path, ext):
     dir_list = search_path[pkg]
