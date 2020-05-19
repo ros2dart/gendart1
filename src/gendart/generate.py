@@ -933,12 +933,15 @@ def write_pubspec(s, package, search_path, context, indir):
     s.newline()
     s.write('dependencies:')
     with Indent(s):
-        s.write('buffer: any') 
-        s.write('dartros: any')
+        s.write('buffer: ^1.0.6') 
+        s.write('dartros: ^0.0.1')
         for dep in deps:
-            s.write('{}:'.format(dep))
-            with Indent(s):
-                s.write('path: ../{}'.format(dep))
+            if dep == 'std_msgs':
+                s.write('std_msgs: ^0.0.1')
+            else:
+                s.write('{}:'.format(dep))
+                with Indent(s):
+                    s.write('path: ../{}'.format(dep))
 
     s.newline()
 
