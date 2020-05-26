@@ -350,6 +350,12 @@ def write_begin(s, spec, is_service=False):
     s.write('// (in-package %s.%s)\n\n' %
             (spec.package, suffix), newline=False)
 
+def write_extra_action_requires(s, spec):
+    base_name = spec.short_name.split('Action')[0]
+    s.write('import \'{}Goal.dart\';'.format(base_name))
+    s.write('import \'{}Feedback.dart\';'.format(base_name))
+    s.write('import \'{}Result.dart\';'.format(base_name))
+    
 
 def write_requires(s, spec, search_path, output_dir, previous_packages=None, prev_deps=None, isSrv=False):
     "Writes out the require fields"
@@ -396,7 +402,9 @@ def write_requires(s, spec, search_path, output_dir, previous_packages=None, pre
     return found_packages, local_deps
 
 
-def write_msg_fields(s, spec, field):
+def write_msg_fields(s, spec, field, action=False):
+    if action:
+        s.write('@override')
     s.write('{} {};'.format(get_type(field), field.name))
 
 
@@ -413,14 +421,30 @@ def write_msg_call_initializers(s, spec, field, last):
             field.name, field.name ))
 
 
-def write_class(s, spec):
+def write_class(s, spec, action=False):
     # s.write('@rosDeserializeable')
-    s.write('class {} extends RosMessage<{}> {{'.format(spec.actual_name, spec.actual_name))
+    if not action:
+        s.write('class {0} extends RosMessage<{0}> {{'.format(spec.actual_name))
+    elif action == 'goal':
+        base_name = spec.short_name.split('Action')[0]
+        s.write('class {} extends RosActionGoal<{}Goal> {{'.format(spec.actual_name, base_name))
+    elif action == 'feedback':
+        base_name = spec.short_name.split('Action')[0]
+        s.write('class {} extends RosActionFeedback<{}Feedback> {{'.format(spec.actual_name, base_name))
+    elif action == 'result':
+        base_name = spec.short_name.split('Action')[0]
+        s.write('class {} extends RosActionResult<{}Result> {{'.format(spec.actual_name, base_name))
+    elif action == 'action':
+        base_name = spec.short_name.split('Action')[0]
+        s.write('class {0}Action extends RosActionMessage<{0}Goal, {0}ActionGoal, {0}Feedback, {0}ActionFeedback, {0}Result, {0}ActionResult> {{'.format(base_name))
+    action_class = False
+    if action != 'action' and action != False:
+        action_class = True
 
     with Indent(s):
 
         for field in spec.parsed_fields():
-            write_msg_fields(s, spec, field)
+            write_msg_fields(s, spec, field, action=action_class)
             s.newline()
         # Constructor
         s.write('static {} empty$ = {}();'.format(spec.actual_name, spec.actual_name))
@@ -841,7 +865,28 @@ def write_message_definition(s, msg_context, spec):
             s.write('\'\'\';', indent=False)
         s.write('}')
         s.newline()
-
+        
+def write_action_extras(s, msg_context, spec):
+    with Indent(s):
+        base_name = spec.short_name.split('Action')[0]
+        s.write('@override')
+        s.write('{}Goal get goal => {}Goal.empty$;'.format(base_name, base_name))
+        s.newline()
+        s.write('@override')
+        s.write('{}ActionGoal get actionGoal => {}ActionGoal.empty$;'.format(base_name, base_name))
+        s.newline()
+        s.write('@override')
+        s.write('{}Feedback get feedback => {}Feedback.empty$;'.format(base_name, base_name))
+        s.newline()
+        s.write('@override')
+        s.write('{}ActionFeedback get actionFeedback => {}ActionFeedback.empty$;'.format(base_name, base_name))
+        s.newline()
+        s.write('@override')
+        s.write('{}Result get result => {}Result.empty$;'.format(base_name, base_name))
+        s.newline()
+        s.write('@override')
+        s.write('{}ActionResult get actionResult => {}ActionResult.empty$;'.format(base_name, base_name))
+        s.newline()
 
 def write_constants(s, spec):
     if spec.constants:
@@ -927,6 +972,13 @@ def write_pubspec(s, package, search_path, context, indir):
     deps = get_all_dependent_pkgs(search_path, context, package, indir)
     # msgExists = os.path.exists(pjoin(package_dir, 'lib/msgs.dart'))
     # srvExists = os.path.exists(pjoin(package_dir, 'lib/srvs.dart'))
+    if package == 'std_msgs':
+        s.write('version: 0.0.2')
+    if package == 'rosgraph_msgs':
+        s.write('version: 0.0.2')
+    if package == 'actionlib_msgs':
+        s.write('version: 0.0.1')
+    s.newline()
     s.write('environment:')
     with Indent(s):
         s.write('sdk: ">=2.7.0 < 3.0.0"')
@@ -934,10 +986,14 @@ def write_pubspec(s, package, search_path, context, indir):
     s.write('dependencies:')
     with Indent(s):
         s.write('buffer: ^1.0.6') 
-        s.write('dartros: ^0.0.1')
+        s.write('dartros: ^0.0.3+2')
         for dep in deps:
             if dep == 'std_msgs':
-                s.write('std_msgs: ^0.0.1')
+                s.write('std_msgs: ^0.0.2')
+            elif dep == 'actionlib_msgs':
+                s.write('actionlib_msgs: ^0.0.1')
+            elif dep == 'rosgraph_msgs':
+                s.write('rosgraph_msgs: ^0.0.2')
             else:
                 s.write('{}:'.format(dep))
                 with Indent(s):
@@ -1084,6 +1140,36 @@ def msg_list_full_path(pkg, search_path, ext):
     return files
 
 
+
+def generate_action_from_spec(msg_context, spec, search_path, output_dir, package, action_type='action'):
+    io = StringIO()
+    s = IndentedWriter(io)
+    write_begin(s, spec)
+    write_extra_action_requires(s, spec)
+    external_deps, _ = write_requires(s, spec, search_path, output_dir)
+    write_class(s, spec, action=action_type)
+    write_serialize(s, spec)
+    write_deserialize(s, spec)
+    write_get_message_size(s, spec, search_path)
+    write_ros_datatype(s, spec)
+    write_md5sum(s, msg_context, spec)
+    write_message_definition(s, msg_context, spec)
+    if action_type == 'action':
+        write_action_extras(s, msg_context, spec)
+    write_end(s, spec)
+    src_dir = output_dir + '/lib/src/msgs'
+    if (not os.path.exists(src_dir)):
+        # if we're being run concurrently, the above test can report false but os.makedirs can still fail if
+        # another copy just created the directory
+        try:
+            os.makedirs(src_dir)
+        except OSError as e:
+            pass
+
+    with open('%s/lib/src/msgs/%s.dart' % (output_dir, spec.short_name), 'w') as f:
+        f.write(io.getvalue() + "\n")
+    io.close()
+
 def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, msgs=None):
     """
     Generate a message
@@ -1098,6 +1184,18 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     for m in msgs:
         genmsg.load_msg_by_type(msg_context, '%s/%s' %
                                 (package, m), search_path)
+    msg = spec.short_name
+    
+    if msg + 'Goal' in msgs and msg + 'Feedback' in msgs and msg + 'Result' in msgs:
+        print('Found action')
+        return generate_action_from_spec(msg_context, spec, search_path, output_dir, package)
+    elif len(msg.split('ActionGoal')) > 1:
+        return generate_action_from_spec(msg_context, spec, search_path, output_dir, package, action_type='goal')
+    elif len(msg.split('ActionFeedback')) > 1:
+        return generate_action_from_spec(msg_context, spec, search_path, output_dir, package, action_type='feedback')
+    elif len(msg.split('ActionResult')) > 1:
+        return generate_action_from_spec(msg_context, spec, search_path, output_dir, package, action_type='result')
+
 
     ########################################
     # 1. Write the .dart file
