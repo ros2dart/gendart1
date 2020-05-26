@@ -772,7 +772,7 @@ def write_get_message_size(s, spec, search_path):
 
 
 def write_msg_export(s, msgs, pkg, context):
-    "Writes an index for the messages"
+    "Writes an export file for the messages"
     for msg in msgs:
         if msg == 'String':
             msg = 'StringMessage'
@@ -789,8 +789,7 @@ def write_msg_export(s, msgs, pkg, context):
 
 
 def write_srv_export(s, srvs, pkg):
-    "Writes an index for the messages"
-    # TODO: Add srv obfuscation for getting serializers
+    "Writes an export file for the services"
     for srv in srvs:
         s.write('import \'src/srvs/{}.dart\' as {}_srv;'.format(srv, srv))
         s.write('export \'src/srvs/{}.dart\';'.format(srv))
@@ -987,9 +986,7 @@ def generate_msg(pkg, files, out_dir, search_path):
     indir = os.path.dirname(files[0])
     
     ########################################
-    # 3. Write the package _index.dart file
-    # This is being rewritten once per msg
-    # file, which is inefficient
+    # 3. Write the package pubspec.yaml.dart file
     ########################################
 
    
@@ -1043,9 +1040,7 @@ def generate_srv(pkg, files, out_dir, search_path):
         generate_srv_from_spec(msg_context, spec, search_path, out_dir, pkg, f)
     indir = os.path.dirname(files[0])
     ########################################
-    # 3. Write the package _index.dart file
-    # This is being rewritten once per msg
-    # file, which is inefficient
+    # 3. Write the package pubspec.yaml file
     ########################################
     
     io = StringIO()
@@ -1134,7 +1129,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     io.close()
     
     ########################################
-    # 3. Write the msg/_index.dart file
+    # 3. Write the msgs.dart file
     # This is being rewritten once per msg
     # file, which is inefficient
     ########################################
@@ -1188,7 +1183,7 @@ def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, 
     io.close()
 
     ########################################
-    # 3. Write the msg/_index.dart file
+    # 3. Write the srvs.dart file
     # This is being rewritten once per msg
     # file, which is inefficient
     ########################################
