@@ -37,7 +37,7 @@ try:
     from cStringIO import StringIO  # Python 2.x
 except ImportError:
     from io import StringIO  # Python 3.x
-
+always_rerun = False
 ############################################################
 # Built in types
 ############################################################
@@ -1015,6 +1015,7 @@ def generate_all_msgs_for_package(package, output_dir, search_path):
         # print(time.time())
         # print('Skipping package generation for {}'.format(package))
     elif package not in generated_packages:
+        generated_packages.add(package)
         generate_msg(package, msgs, pjoin(output_dir, package), search_path)
     else:
         pass
@@ -1024,10 +1025,6 @@ def generate_msg(pkg, files, out_dir, search_path):
     Generate dart code for all messages in a package
     """
     # print('Generated packages {}'.format(generated_packages))
-    if pkg in generated_packages:
-        # print('Skipping package generation for {}'.format(pkg))
-        return
-    
 
     msg_context = MsgContext.create_default()
     
@@ -1038,7 +1035,7 @@ def generate_msg(pkg, files, out_dir, search_path):
         spec = genmsg.msg_loader.load_msg_from_file(msg_context, f, full_type)
         if spec.short_name == 'String':
             spec.short_name = 'StringMessage'
-        generate_msg_from_spec(msg_context, spec, search_path, out_dir, pkg)
+        generate_msg_from_spec(msg_context, spec, search_path, out_dir, pkg, last_modified=os.path.getmtime(f))
     indir = os.path.dirname(files[0])
     
     ########################################
@@ -1093,7 +1090,7 @@ def generate_srv(pkg, files, out_dir, search_path):
         infile = os.path.basename(f)
         full_type = genmsg.gentools.compute_full_type_name(pkg, infile)
         spec = genmsg.msg_loader.load_srv_from_file(msg_context, f, full_type)
-        generate_srv_from_spec(msg_context, spec, search_path, out_dir, pkg, f)
+        generate_srv_from_spec(msg_context, spec, search_path, out_dir, pkg, f, last_modified=os.path.getmtime(f))
     indir = os.path.dirname(files[0])
     ########################################
     # 3. Write the package pubspec.yaml file
@@ -1170,13 +1167,16 @@ def generate_action_from_spec(msg_context, spec, search_path, output_dir, packag
         f.write(io.getvalue() + "\n")
     io.close()
 
-def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, msgs=None):
+def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, msgs=None, last_modified=None):
     """
     Generate a message
 
     @param msg_path: The path to the .msg file
     @type msg_path: str
     """
+    output_file = '%s/lib/src/msgs/%s.dart' % (output_dir, spec.short_name)
+    if last_modified is not None and os.path.exists(output_file) and last_modified < os.path.getmtime(output_file):
+        return
     genmsg.msg_loader.load_depends(msg_context, spec, search_path)
     spec.actual_name = spec.short_name
     spec.component_type = 'message'
@@ -1187,7 +1187,6 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     msg = spec.short_name
     
     if msg + 'Goal' in msgs and msg + 'Feedback' in msgs and msg + 'Result' in msgs:
-        print('Found action')
         return generate_action_from_spec(msg_context, spec, search_path, output_dir, package)
     elif len(msg.split('ActionGoal')) > 1:
         return generate_action_from_spec(msg_context, spec, search_path, output_dir, package, action_type='goal')
@@ -1222,7 +1221,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
         except OSError as e:
             pass
 
-    with open('%s/lib/src/msgs/%s.dart' % (output_dir, spec.short_name), 'w') as f:
+    with open(output_file, 'w') as f:
         f.write(io.getvalue() + "\n")
     io.close()
     
@@ -1241,8 +1240,11 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
 # TODO most of this could probably be refactored into being shared with messages
 
 
-def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, path):
+def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, path, last_modified=None):
     "Generate code from .srv file"
+    output_file = '%s/lib/src/srvs/%s.dart' % (output_dir, spec.short_name)
+    if last_modified is not None and os.path.exists(output_file) and last_modified < os.path.getmtime(output_file):
+        return
     genmsg.msg_loader.load_depends(msg_context, spec, search_path)
     ext = '.srv'
     srv_path = os.path.dirname(path)
