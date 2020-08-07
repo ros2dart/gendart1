@@ -42,6 +42,7 @@ always_rerun = False
 # Built in types
 ############################################################
 generated_packages = set()
+DebugGen = True
 
 def is_fixnum(t):
     return t in ['int8', 'uint8', 'int16', 'uint16']
@@ -423,31 +424,31 @@ def write_msg_call_initializers(s, spec, field, last):
 
 def write_class(s, spec, action=False):
     # s.write('@rosDeserializeable')
-    if not action:
-        s.write('class {0} extends RosMessage<{0}> {{'.format(spec.actual_name))
-    elif action == 'goal':
-        base_name = spec.short_name.split('Action')[0]
-        s.write('class {} extends RosActionGoal<{}Goal> {{'.format(spec.actual_name, base_name))
-    elif action == 'feedback':
-        base_name = spec.short_name.split('Action')[0]
-        s.write('class {} extends RosActionFeedback<{}Feedback> {{'.format(spec.actual_name, base_name))
-    elif action == 'result':
-        base_name = spec.short_name.split('Action')[0]
-        s.write('class {} extends RosActionResult<{}Result> {{'.format(spec.actual_name, base_name))
-    elif action == 'action':
-        base_name = spec.short_name.split('Action')[0]
-        s.write('class {0}Action extends RosActionMessage<{0}Goal, {0}ActionGoal, {0}Feedback, {0}ActionFeedback, {0}Result, {0}ActionResult> {{'.format(base_name))
-    action_class = False
-    if action != 'action' and action != False:
-        action_class = True
+    # if not action:
+    s.write('class {0} extends RosMessage<{0}> {{'.format(spec.actual_name))
+    # elif action == 'goal':
+    #     base_name = spec.short_name.split('Action')[0]
+    #     s.write('class {} extends RosActionGoal<{}Goal> {{'.format(spec.actual_name, base_name))
+    # elif action == 'feedback':
+    #     base_name = spec.short_name.split('Action')[0]
+    #     s.write('class {} extends RosActionFeedback<{}Feedback> {{'.format(spec.actual_name, base_name))
+    # elif action == 'result':
+    #     base_name = spec.short_name.split('Action')[0]
+    #     s.write('class {} extends RosActionResult<{}Result> {{'.format(spec.actual_name, base_name))
+    # elif action == 'action':
+    #     base_name = spec.short_name.split('Action')[0]
+    #     s.write('class {0}Action extends RosActionMessage<{0}Goal, {0}ActionGoal, {0}Feedback, {0}ActionFeedback, {0}Result, {0}ActionResult> {{'.format(base_name))
+    # action_class = False
+    # if action != 'action' and action != False:
+    #     action_class = True
 
     with Indent(s):
 
         for field in spec.parsed_fields():
-            write_msg_fields(s, spec, field, action=action_class)
+            write_msg_fields(s, spec, field) #, action=action_class)
             s.newline()
         # Constructor
-        s.write('static {} empty$ = {}();'.format(spec.actual_name, spec.actual_name))
+        s.write('static {0} empty$ = {0}();'.format(spec.actual_name))
 
         num_fields = len(spec.parsed_fields())
         if num_fields > 0:
@@ -477,7 +478,7 @@ def write_class(s, spec, action=False):
             s.write(');')
             
         else:
-            s.write('{} call() => {}();'.format(spec.actual_name, spec.actual_name))
+            s.write('{0} call() => {0}();'.format(spec.actual_name))
 
     s.newline()
 
@@ -907,6 +908,10 @@ def write_constants(s, spec):
 
 def write_srv_component(s, spec, context, parent, search_path):
     spec.component_type = 'service'
+    for field in spec.parsed_fields():
+        if field.name == spec.actual_name:
+            # print('Here')
+            field.name = spec.actual_name + 'Value'
     write_class(s, spec)
     write_serialize(s, spec)
     write_deserialize(s, spec)
@@ -986,7 +991,7 @@ def write_pubspec(s, package, search_path, context, indir):
     s.write('dependencies:')
     with Indent(s):
         s.write('buffer: ^1.0.6') 
-        s.write('dartros: ^0.0.3+2')
+        s.write('dartros: ^0.0.3+4')
         for dep in deps:
             if dep == 'std_msgs':
                 s.write('std_msgs: ^0.0.2')
@@ -1035,6 +1040,7 @@ def generate_msg(pkg, files, out_dir, search_path):
         spec = genmsg.msg_loader.load_msg_from_file(msg_context, f, full_type)
         if spec.short_name == 'String':
             spec.short_name = 'StringMessage'
+       
         generate_msg_from_spec(msg_context, spec, search_path, out_dir, pkg, last_modified=os.path.getmtime(f))
     indir = os.path.dirname(files[0])
     
@@ -1090,6 +1096,9 @@ def generate_srv(pkg, files, out_dir, search_path):
         infile = os.path.basename(f)
         full_type = genmsg.gentools.compute_full_type_name(pkg, infile)
         spec = genmsg.msg_loader.load_srv_from_file(msg_context, f, full_type)
+        if '.action' in f:
+            print('Action class')
+            return
         generate_srv_from_spec(msg_context, spec, search_path, out_dir, pkg, f, last_modified=os.path.getmtime(f))
     indir = os.path.dirname(files[0])
     ########################################
@@ -1175,10 +1184,13 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     @type msg_path: str
     """
     output_file = '%s/lib/src/msgs/%s.dart' % (output_dir, spec.short_name)
-    if last_modified is not None and os.path.exists(output_file) and last_modified < os.path.getmtime(output_file):
+    if last_modified is not None and os.path.exists(output_file) and last_modified < os.path.getmtime(output_file) and not DebugGen:
         return
     genmsg.msg_loader.load_depends(msg_context, spec, search_path)
     spec.actual_name = spec.short_name
+    for field in spec.parsed_fields():
+        if field.name == spec.actual_name:
+            field.name = spec.actual_name + 'Value'
     spec.component_type = 'message'
     msgs = msg_list(package, search_path, '.msg')
     for m in msgs:
@@ -1243,7 +1255,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
 def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, path, last_modified=None):
     "Generate code from .srv file"
     output_file = '%s/lib/src/srvs/%s.dart' % (output_dir, spec.short_name)
-    if last_modified is not None and os.path.exists(output_file) and last_modified < os.path.getmtime(output_file):
+    if last_modified is not None and os.path.exists(output_file) and last_modified < os.path.getmtime(output_file) and not DebugGen:
         return
     genmsg.msg_loader.load_depends(msg_context, spec, search_path)
     ext = '.srv'
