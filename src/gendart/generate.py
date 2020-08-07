@@ -613,19 +613,22 @@ def write_serialize(s, spec):
 
 def write_deserialize_length(s, name):
     s.write('// Deserialize array length for message field [{}]'.format(name))
-    s.write('var len = reader.readInt32();')
+    s.write('final len = reader.readInt32();')
 
 
 def write_deserialize_complex(s, f, thisPackage):
     (package, msg_type) = f.base_type.split('/')
     if f.is_array:
-        if f.array_len is None:
-            write_deserialize_length(s, f.name)
-        else:
-            s.write('final len = {};'.format(f.array_len))
+        s.write('{')
+        with Indent(s):
+            if f.array_len is None:
+                write_deserialize_length(s, f.name)
+            else:
+                s.write('{\nfinal len = {};'.format(f.array_len))
 
-        s.write(
-            'data.{} = List.generate(len, (_) => {}.empty$.deserialize(reader));'.format(f.name, msg_type))
+            s.write(
+                'data.{} = List.generate(len, (_) => {}.empty$.deserialize(reader));'.format(f.name, msg_type))
+        s.write('}')
     else:
         s.write('data.{} = {}.empty$.deserialize(reader);'.format(
             f.name, msg_type))
