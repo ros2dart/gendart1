@@ -37,12 +37,11 @@ try:
     from cStringIO import StringIO  # Python 2.x
 except ImportError:
     from io import StringIO  # Python 3.x
-always_rerun = False
 ############################################################
 # Built in types
 ############################################################
 generated_packages = set()
-DebugGen = True
+DebugGen = False
 
 def is_fixnum(t):
     return t in ['int8', 'uint8', 'int16', 'uint16']
