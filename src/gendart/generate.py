@@ -37,6 +37,7 @@ try:
     from cStringIO import StringIO  # Python 2.x
 except ImportError:
     from io import StringIO  # Python 3.x
+GenVersion = "0.0.3"
 ############################################################
 # Built in types
 ############################################################
@@ -160,7 +161,7 @@ def get_type(field):
             print('ERROR getting type!')
             return 'var'
     (package, msg_type) = field.base_type.split('/')
-    return '{}'.format(msg_type)
+    return '{}Type'.format(msg_type)
 
 
 def get_default_value(field, current_message_package):
@@ -187,7 +188,7 @@ def get_default_value(field, current_message_package):
             return '0'
     # else
     (package, msg_type) = field.base_type.split('/')
-    return '{}()'.format(msg_type)
+    return '{}Type()'.format(msg_type)
 
 
 def is_message_fixed_size(spec, search_path):
@@ -346,6 +347,7 @@ def write_begin(s, spec, is_service=False):
     "Writes the beginning of the file: a comment saying it's auto-generated and the in-package form"
 
     s.write('// Auto-generated. Do not edit!\n\n', newline=False)
+    s.write('// Updated: {}\n\n'.format(time.ctime()), newline=False)
     suffix = 'srv' if is_service else 'msg'
     s.write('// (in-package %s.%s)\n\n' %
             (spec.package, suffix), newline=False)
@@ -424,7 +426,7 @@ def write_msg_call_initializers(s, spec, field, last):
 def write_class(s, spec, action=False):
     # s.write('@rosDeserializeable')
     # if not action:
-    s.write('class {0} extends RosMessage<{0}> {{'.format(spec.actual_name))
+    s.write('class {0}Type extends RosMessage<{0}Type> {{'.format(spec.actual_name))
     # elif action == 'goal':
     #     base_name = spec.short_name.split('Action')[0]
     #     s.write('class {} extends RosActionGoal<{}Goal> {{'.format(spec.actual_name, base_name))
@@ -447,11 +449,11 @@ def write_class(s, spec, action=False):
             write_msg_fields(s, spec, field) #, action=action_class)
             s.newline()
         # Constructor
-        s.write('static {0} empty$ = {0}();'.format(spec.actual_name))
+        s.write('static {0}Type empty$ = {0}Type();'.format(spec.actual_name))
 
         num_fields = len(spec.parsed_fields())
         if num_fields > 0:
-            s.write('{}({{ '.format(spec.actual_name))
+            s.write('{}Type({{ '.format(spec.actual_name))
             with Indent(s):
                 for field in spec.parsed_fields():
                     write_msg_constructor_field(s, spec, field)
@@ -460,24 +462,24 @@ def write_class(s, spec, action=False):
                 write_msg_constructor_initializers(
                     s, spec, field, num_fields-1 == i)
         else:
-            s.write('{}();'.format(spec.actual_name))
+            s.write('{}Type();'.format(spec.actual_name))
 
         s.newline()
 
         num_fields = len(spec.parsed_fields())
         if num_fields > 0:
-            s.write('{} call({{ '.format(spec.actual_name))
+            s.write('{}Type call({{ '.format(spec.actual_name))
             with Indent(s):
                 for field in spec.parsed_fields():
                     write_msg_constructor_field(s, spec, field)
-            s.write('}}) => {}('.format(spec.actual_name))
+            s.write('}}) => {}Type('.format(spec.actual_name))
             for i, field in enumerate(spec.parsed_fields()):
                 write_msg_call_initializers(
                     s, spec, field, num_fields-1 == i)
             s.write(');')
             
         else:
-            s.write('{0} call() => {0}();'.format(spec.actual_name))
+            s.write('{0}Type call() => {0}Type();'.format(spec.actual_name))
 
     s.newline()
 
@@ -626,10 +628,10 @@ def write_deserialize_complex(s, f, thisPackage):
                 s.write('{\nfinal len = {};'.format(f.array_len))
 
             s.write(
-                'data.{} = List.generate(len, (_) => {}.empty$.deserialize(reader));'.format(f.name, msg_type))
+                'data.{} = List.generate(len, (_) => {}Type.empty$.deserialize(reader));'.format(f.name, msg_type))
         s.write('}')
     else:
-        s.write('data.{} = {}.empty$.deserialize(reader);'.format(
+        s.write('data.{} = {}Type.empty$.deserialize(reader);'.format(
             f.name, msg_type))
 
 
@@ -691,12 +693,12 @@ def write_deserialize(s, spec):
     """
     with Indent(s):
         s.write('@override')
-        s.write('{} deserialize(ByteDataReader reader) {{'.format(
+        s.write('{}Type deserialize(ByteDataReader reader) {{'.format(
             spec.short_name, spec.short_name))
         with Indent(s):
             s.write(
                 '//deserializes a message object of type {}'.format(spec.short_name))
-            s.write('final data = {}();'.format(spec.short_name))
+            s.write('final data = {}Type();'.format(spec.short_name))
             for f in spec.parsed_fields():
                 write_deserialize_field(s, f, spec.package)
 
@@ -800,6 +802,9 @@ def write_get_message_size(s, spec, search_path):
 
 def write_msg_export(s, msgs, pkg, context):
     "Writes an export file for the messages"
+
+    s.write('// Auto-generated. Do not edit!\n\n', newline=False)
+    s.write('// Updated: {}\n\n'.format(time.ctime()), newline=False)
     for msg in msgs:
         if msg == 'String':
             msg = 'StringMessage'
@@ -807,23 +812,28 @@ def write_msg_export(s, msgs, pkg, context):
         s.write('export \'src/msgs/{}.dart\';'.format(msg))
     s.newline()
     s.write('class {} {{'.format(pkg))
-    for msg in msgs:
-        if msg == 'String':
-            msg = 'StringMessage'
-        s.write('static {}_msg.{} {} = {}_msg.{}.empty$;'.format(msg,msg,msg,msg,msg))
+    with Indent(s):
+        for msg in msgs:
+            if msg == 'String':
+                msg = 'StringMessage'
+            s.write('static {}_msg.{}Type {} = {}_msg.{}Type.empty$;'.format(msg,msg,msg,msg,msg))
     s.write('}')
     s.newline()
 
 
 def write_srv_export(s, srvs, pkg):
     "Writes an export file for the services"
+
+    s.write('// Auto-generated. Do not edit!\n\n', newline=False)
+    s.write('// Updated: {}\n\n'.format(time.ctime()), newline=False)
     for srv in srvs:
         s.write('import \'src/srvs/{}.dart\' as {}_srv;'.format(srv, srv))
         s.write('export \'src/srvs/{}.dart\';'.format(srv))
     s.newline()
     s.write('class {} {{'.format(pkg))
-    for srv in srvs:
-        s.write('static {}_srv.{} {} = {}_srv.{}.empty$;'.format(srv,srv,srv,srv,srv))
+    with Indent(s):
+        for srv in srvs:
+            s.write('static {}_srv.{}Type {} = {}_srv.{}Type.empty$;'.format(srv,srv,srv,srv,srv))
     s.write('}')
     s.newline()
 
@@ -928,13 +938,13 @@ def write_srv_component(s, spec, context, parent, search_path):
 
 def write_srv_end(s, context, spec):
     name = spec.short_name
-    s.write('class {} extends RosServiceMessage<{}Request, {}Response> {{'.format(name, name, name))
+    s.write('class {}Type extends RosServiceMessage<{}RequestType, {}ResponseType> {{'.format(name, name, name))
     with Indent(s):
         s.write('static final empty$ = {}();'.format(name))
         s.write('@override')
-        s.write('{}Request get request => {}Request.empty$;'.format(name, name))
+        s.write('{}RequestType get request => {}RequestType.empty$;'.format(name, name))
         s.write('@override')
-        s.write('{}Response get response => {}Response.empty$;'.format(name, name))
+        s.write('{}ResponseType get response => {}ResponseType.empty$;'.format(name, name))
         md5sum = genmsg.compute_md5(context, spec)
         s.write('@override')
         s.write('String get md5sum => \'{}\';'.format(md5sum))
@@ -969,8 +979,13 @@ def get_all_dependent_pkgs(search_path, context, package, indir):
     return all_pkgs
 
 def write_pubspec(s, package, search_path, context, indir):
+
+    s.write('# Auto-generated. Do not edit!\n\n', newline=False)
+    s.write('# Updated: {}\n\n'.format(time.ctime()), newline=False)
     s.write('name: {}'.format(package))
     s.write('description: A ros {} message package for dartros'.format(package))
+    s.write('version: {}'.format(GenVersion))
+    s.write('repository: https://github.com/TimWhiting/{}_dart'.format(package))
     msgs = msg_list(package, search_path, '.msg')
     for m in msgs:
         genmsg.load_msg_by_type(context, '%s/%s' %
@@ -979,12 +994,6 @@ def write_pubspec(s, package, search_path, context, indir):
     deps = get_all_dependent_pkgs(search_path, context, package, indir)
     # msgExists = os.path.exists(pjoin(package_dir, 'lib/msgs.dart'))
     # srvExists = os.path.exists(pjoin(package_dir, 'lib/srvs.dart'))
-    if package == 'std_msgs':
-        s.write('version: 0.0.2')
-    if package == 'rosgraph_msgs':
-        s.write('version: 0.0.2')
-    if package == 'actionlib_msgs':
-        s.write('version: 0.0.1')
     s.newline()
     s.write('environment:')
     with Indent(s):
@@ -1008,7 +1017,15 @@ def write_pubspec(s, package, search_path, context, indir):
 
     s.newline()
 
-
+def needs_update(infile, outfile):
+    last_modified_input = os.path.getmtime(infile)
+    script_updated = os.path.getmtime(__file__)
+    outexists = os.path.exists(outfile)
+    if outexists and not DebugGen:
+        last_modified_output = os.path.getmtime(outfile)
+        return last_modified_input > last_modified_output or script_updated > last_modified_output
+    return True
+    
 def generate_all_msgs_for_package(package, output_dir, search_path):
     path_package = find_path_from_cmake_path(
             pjoin('share', package, 'msg'))
@@ -1042,8 +1059,8 @@ def generate_msg(pkg, files, out_dir, search_path):
         spec = genmsg.msg_loader.load_msg_from_file(msg_context, f, full_type)
         if spec.short_name == 'String':
             spec.short_name = 'StringMessage'
-       
-        generate_msg_from_spec(msg_context, spec, search_path, out_dir, pkg, last_modified=os.path.getmtime(f))
+        
+        generate_msg_from_spec(msg_context, spec, search_path, out_dir, pkg, f)
     indir = os.path.dirname(files[0])
     
     ########################################
@@ -1101,7 +1118,7 @@ def generate_srv(pkg, files, out_dir, search_path):
         if '.action' in f:
             print('Action class')
             return
-        generate_srv_from_spec(msg_context, spec, search_path, out_dir, pkg, f, last_modified=os.path.getmtime(f))
+        generate_srv_from_spec(msg_context, spec, search_path, out_dir, pkg, f)
     indir = os.path.dirname(files[0])
     ########################################
     # 3. Write the package pubspec.yaml file
@@ -1178,7 +1195,10 @@ def generate_action_from_spec(msg_context, spec, search_path, output_dir, packag
         f.write(io.getvalue() + "\n")
     io.close()
 
-def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, msgs=None, last_modified=None):
+
+
+
+def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, infile, msgs=None):
     """
     Generate a message
 
@@ -1186,7 +1206,7 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     @type msg_path: str
     """
     output_file = '%s/lib/src/msgs/%s.dart' % (output_dir, spec.short_name)
-    if last_modified is not None and os.path.exists(output_file) and last_modified < os.path.getmtime(output_file) and not DebugGen:
+    if not needs_update(infile, output_file):
         return
     genmsg.msg_loader.load_depends(msg_context, spec, search_path)
     spec.actual_name = spec.short_name
@@ -1254,10 +1274,10 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
 # TODO most of this could probably be refactored into being shared with messages
 
 
-def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, path, last_modified=None):
+def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, path):
     "Generate code from .srv file"
     output_file = '%s/lib/src/srvs/%s.dart' % (output_dir, spec.short_name)
-    if last_modified is not None and os.path.exists(output_file) and last_modified < os.path.getmtime(output_file) and not DebugGen:
+    if not needs_update(path, output_file):
         return
     genmsg.msg_loader.load_depends(msg_context, spec, search_path)
     ext = '.srv'
