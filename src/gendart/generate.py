@@ -1013,6 +1013,9 @@ def needs_update(infile, outfile):
 def generate_all_msgs_for_package(package, output_dir, search_path):
     path_package = find_path_from_cmake_path(
             pjoin('share', package, 'msg'))
+    if (path_package is None):
+        # print('New package: {}'.format(package))
+        return
     msgs = glob.glob(path_package + '/*.msg')
     # print(msgs)
     other_package = '{}/pubspec.yaml'.format(pjoin(output_dir, package))
@@ -1082,7 +1085,7 @@ def generate_msg(pkg, files, out_dir, search_path):
     if len(search_path.keys()) == 0:
         return
     for package in search_path.keys():
-        if package != pkg:
+        if package != pkg and package is not None:
             # new_search = deepcopy(search_path)
             # new_search.pop(package)
             generate_all_msgs_for_package(package, directory, search_path)
