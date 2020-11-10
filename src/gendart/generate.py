@@ -161,7 +161,7 @@ def get_type(field):
             print('ERROR getting type!')
             return 'var'
     (package, msg_type) = field.base_type.split('/')
-    return '{}Type'.format(msg_type)
+    return '{}'.format(msg_type)
 
 
 def get_default_value(field, current_message_package):
@@ -188,7 +188,7 @@ def get_default_value(field, current_message_package):
             return '0'
     # else
     (package, msg_type) = field.base_type.split('/')
-    return '{}Type()'.format(msg_type)
+    return '{}()'.format(msg_type)
 
 
 def is_message_fixed_size(spec, search_path):
@@ -426,7 +426,7 @@ def write_msg_call_initializers(s, spec, field, last):
 def write_class(s, spec, action=False):
     # s.write('@rosDeserializeable')
     # if not action:
-    s.write('class {0}Type extends RosMessage<{0}Type> {{'.format(spec.actual_name))
+    s.write('class {0} extends RosMessage<{0}> {{'.format(spec.actual_name))
     # elif action == 'goal':
     #     base_name = spec.short_name.split('Action')[0]
     #     s.write('class {} extends RosActionGoal<{}Goal> {{'.format(spec.actual_name, base_name))
@@ -449,11 +449,11 @@ def write_class(s, spec, action=False):
             write_msg_fields(s, spec, field) #, action=action_class)
             s.newline()
         # Constructor
-        s.write('static {0}Type empty$ = {0}Type();'.format(spec.actual_name))
+        s.write('static {0} $prototype = {0}();'.format(spec.actual_name))
 
         num_fields = len(spec.parsed_fields())
         if num_fields > 0:
-            s.write('{}Type({{ '.format(spec.actual_name))
+            s.write('{}({{ '.format(spec.actual_name))
             with Indent(s):
                 for field in spec.parsed_fields():
                     write_msg_constructor_field(s, spec, field)
@@ -462,24 +462,24 @@ def write_class(s, spec, action=False):
                 write_msg_constructor_initializers(
                     s, spec, field, num_fields-1 == i)
         else:
-            s.write('{}Type();'.format(spec.actual_name))
+            s.write('{}();'.format(spec.actual_name))
 
         s.newline()
 
         num_fields = len(spec.parsed_fields())
         if num_fields > 0:
-            s.write('{}Type call({{ '.format(spec.actual_name))
+            s.write('{} call({{ '.format(spec.actual_name))
             with Indent(s):
                 for field in spec.parsed_fields():
                     write_msg_constructor_field(s, spec, field)
-            s.write('}}) => {}Type('.format(spec.actual_name))
+            s.write('}}) => {}('.format(spec.actual_name))
             for i, field in enumerate(spec.parsed_fields()):
                 write_msg_call_initializers(
                     s, spec, field, num_fields-1 == i)
             s.write(');')
             
         else:
-            s.write('{0}Type call() => {0}Type();'.format(spec.actual_name))
+            s.write('{0} call() => {0}();'.format(spec.actual_name))
 
     s.newline()
 
@@ -628,10 +628,10 @@ def write_deserialize_complex(s, f, thisPackage):
                 s.write('{\nfinal len = {};'.format(f.array_len))
 
             s.write(
-                'data.{} = List.generate(len, (_) => {}Type.empty$.deserialize(reader));'.format(f.name, msg_type))
+                'data.{} = List.generate(len, (_) => {}.$prototype.deserialize(reader));'.format(f.name, msg_type))
         s.write('}')
     else:
-        s.write('data.{} = {}Type.empty$.deserialize(reader);'.format(
+        s.write('data.{} = {}.$prototype.deserialize(reader);'.format(
             f.name, msg_type))
 
 
@@ -693,12 +693,12 @@ def write_deserialize(s, spec):
     """
     with Indent(s):
         s.write('@override')
-        s.write('{}Type deserialize(ByteDataReader reader) {{'.format(
+        s.write('{} deserialize(ByteDataReader reader) {{'.format(
             spec.short_name, spec.short_name))
         with Indent(s):
             s.write(
                 '//deserializes a message object of type {}'.format(spec.short_name))
-            s.write('final data = {}Type();'.format(spec.short_name))
+            s.write('final data = {}();'.format(spec.short_name))
             for f in spec.parsed_fields():
                 write_deserialize_field(s, f, spec.package)
 
@@ -808,16 +808,7 @@ def write_msg_export(s, msgs, pkg, context):
     for msg in msgs:
         if msg == 'String':
             msg = 'StringMessage'
-        s.write('import \'src/msgs/{}.dart\' as {}_msg;'.format(msg,msg))
         s.write('export \'src/msgs/{}.dart\';'.format(msg))
-    s.newline()
-    s.write('class {} {{'.format(pkg))
-    with Indent(s):
-        for msg in msgs:
-            if msg == 'String':
-                msg = 'StringMessage'
-            s.write('static {}_msg.{}Type {} = {}_msg.{}Type.empty$;'.format(msg,msg,msg,msg,msg))
-    s.write('}')
     s.newline()
 
 
@@ -827,14 +818,7 @@ def write_srv_export(s, srvs, pkg):
     s.write('// Auto-generated. Do not edit!\n\n', newline=False)
     s.write('// Updated: {}\n\n'.format(time.ctime()), newline=False)
     for srv in srvs:
-        s.write('import \'src/srvs/{}.dart\' as {}_srv;'.format(srv, srv))
         s.write('export \'src/srvs/{}.dart\';'.format(srv))
-    s.newline()
-    s.write('class {} {{'.format(pkg))
-    with Indent(s):
-        for srv in srvs:
-            s.write('static {}_srv.{}Type {} = {}_srv.{}Type.empty$;'.format(srv,srv,srv,srv,srv))
-    s.write('}')
     s.newline()
 
 
@@ -883,22 +867,22 @@ def write_action_extras(s, msg_context, spec):
     with Indent(s):
         base_name = spec.short_name.split('Action')[0]
         s.write('@override')
-        s.write('{}Goal get goal => {}Goal.empty$;'.format(base_name, base_name))
+        s.write('{}Goal get goal => {}Goal.$prototype;'.format(base_name, base_name))
         s.newline()
         s.write('@override')
-        s.write('{}ActionGoal get actionGoal => {}ActionGoal.empty$;'.format(base_name, base_name))
+        s.write('{}ActionGoal get actionGoal => {}ActionGoal.$prototype;'.format(base_name, base_name))
         s.newline()
         s.write('@override')
-        s.write('{}Feedback get feedback => {}Feedback.empty$;'.format(base_name, base_name))
+        s.write('{}Feedback get feedback => {}Feedback.$prototype;'.format(base_name, base_name))
         s.newline()
         s.write('@override')
-        s.write('{}ActionFeedback get actionFeedback => {}ActionFeedback.empty$;'.format(base_name, base_name))
+        s.write('{}ActionFeedback get actionFeedback => {}ActionFeedback.$prototype;'.format(base_name, base_name))
         s.newline()
         s.write('@override')
-        s.write('{}Result get result => {}Result.empty$;'.format(base_name, base_name))
+        s.write('{}Result get result => {}Result.$prototype;'.format(base_name, base_name))
         s.newline()
         s.write('@override')
-        s.write('{}ActionResult get actionResult => {}ActionResult.empty$;'.format(base_name, base_name))
+        s.write('{}ActionResult get actionResult => {}ActionResult.$prototype;'.format(base_name, base_name))
         s.newline()
 
 def write_constants(s, spec):
@@ -938,13 +922,13 @@ def write_srv_component(s, spec, context, parent, search_path):
 
 def write_srv_end(s, context, spec):
     name = spec.short_name
-    s.write('class {}Type extends RosServiceMessage<{}RequestType, {}ResponseType> {{'.format(name, name, name))
+    s.write('class {} extends RosServiceMessage<{}Request, {}Response> {{'.format(name, name, name))
     with Indent(s):
-        s.write('static final empty$ = {}();'.format(name))
+        s.write('static final $prototype = {}();'.format(name))
         s.write('@override')
-        s.write('{}RequestType get request => {}RequestType.empty$;'.format(name, name))
+        s.write('{}Request get request => {}Request.$prototype;'.format(name, name))
         s.write('@override')
-        s.write('{}ResponseType get response => {}ResponseType.empty$;'.format(name, name))
+        s.write('{}Response get response => {}Response.$prototype;'.format(name, name))
         md5sum = genmsg.compute_md5(context, spec)
         s.write('@override')
         s.write('String get md5sum => \'{}\';'.format(md5sum))
