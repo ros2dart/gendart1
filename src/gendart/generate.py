@@ -802,7 +802,7 @@ def write_get_message_size(s, spec, search_path):
 
 def write_msg_export(s, msgs, pkg, context):
     "Writes an export file for the messages"
-
+    
     s.write('// Auto-generated. Do not edit!\n\n', newline=False)
     s.write('// Updated: {}\n\n'.format(time.ctime()), newline=False)
     for msg in msgs:
@@ -989,11 +989,11 @@ def write_pubspec(s, package, search_path, context, indir):
         s.write('dartros: ^0.0.3+4')
         for dep in deps:
             if dep == 'std_msgs':
-                s.write('std_msgs: ^0.0.2')
+                s.write('std_msgs: ^{}'.format(GenVersion))
             elif dep == 'actionlib_msgs':
-                s.write('actionlib_msgs: ^0.0.1')
+                s.write('actionlib_msgs: ^{}'.format(GenVersion))
             elif dep == 'rosgraph_msgs':
-                s.write('rosgraph_msgs: ^0.0.2')
+                s.write('rosgraph_msgs: ^{}'.format(GenVersion))
             else:
                 s.write('{}:'.format(dep))
                 with Indent(s):
