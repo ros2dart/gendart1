@@ -387,7 +387,6 @@ def write_requires(s, spec, search_path, output_dir, previous_packages=None, pre
         s.write('import \'package:{}/msgs.dart\';'.format(package))
         (directory, pack) = psplit(output_dir)
         generate_all_msgs_for_package(package, directory, search_path)
-            # print("Skipping package generation for {}".format(package))
 
     # require mesages from this package
     # messages from this package need to be requried separately
@@ -963,7 +962,6 @@ def get_all_dependent_pkgs(search_path, context, package, indir):
     return all_pkgs
 
 def write_pubspec(s, package, search_path, context, indir):
-
     s.write('# Auto-generated. Do not edit!\n\n', newline=False)
     s.write('# Updated: {}\n\n'.format(time.ctime()), newline=False)
     s.write('name: {}'.format(package))
@@ -1024,7 +1022,7 @@ def generate_all_msgs_for_package(package, output_dir, search_path):
     # print(msgs)
     other_package = '{}/pubspec.yaml'.format(pjoin(output_dir, package))
     # print('Other package {}'.format(other_package))
-    if os.path.isfile(other_package) and time.time() - os.path.getmtime(other_package) < 5: # If was created less than 5 seconds ago
+    if not needs_update(other_package, other_package): # If generation script hasn't changed
         pass
         # print(t)
         # print(time.time())
