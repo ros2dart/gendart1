@@ -986,7 +986,7 @@ def write_pubspec(s, package, search_path, context, indir):
     s.write('dependencies:')
     with Indent(s):
         s.write('buffer: ^1.0.6') 
-        s.write('dartros: ^0.0.3+4')
+        s.write('dartros: ^0.0.4+3')
         for dep in deps:
             if dep == 'std_msgs':
                 s.write('std_msgs: ^{}'.format(GenVersion))
