@@ -994,6 +994,10 @@ def write_pubspec(s, package, search_path, context, indir):
                 s.write('actionlib_msgs: ^{}'.format(GenVersion))
             elif dep == 'rosgraph_msgs':
                 s.write('rosgraph_msgs: ^{}'.format(GenVersion))
+            elif dep == 'sensor_msgs':
+                s.write('sensor_msgs: ^{}'.format(GenVersion))
+            elif dep == 'geometry_msgs':
+                s.write('geometry_msgs: ^{}'.format(GenVersion))
             else:
                 s.write('{}:'.format(dep))
                 with Indent(s):
