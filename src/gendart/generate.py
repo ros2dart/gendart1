@@ -1004,6 +1004,8 @@ def write_pubspec(s, package, search_path, context, indir):
     s.newline()
 
 def needs_update(infile, outfile):
+    if not os.path.exists(outfile):
+        return True
     last_modified_input = os.path.getmtime(infile)
     script_updated = os.path.getmtime(__file__)
     outexists = os.path.exists(outfile)
