@@ -1005,7 +1005,7 @@ def needs_update(infile, outfile):
     if not os.path.exists(outfile):
         return True
     last_modified_input = os.path.getmtime(infile)
-    script_updated = os.path.getmtime(__file__)
+    script_updated = os.path.getmtime(__file__.rstrip('c'))
     outexists = os.path.exists(outfile)
     if outexists and not DebugGen:
         last_modified_output = os.path.getmtime(outfile)
@@ -1014,7 +1014,7 @@ def needs_update(infile, outfile):
     
 def generate_all_msgs_for_package(package, output_dir, search_path):
     path_package = find_path_from_cmake_path(
-            pjoin('share', package, 'msg'))
+            pjoin('share', package, 'msg')) 
     if (path_package is None):
         # print('New package: {}'.format(package))
         return
