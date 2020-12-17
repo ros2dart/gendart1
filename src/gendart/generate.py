@@ -967,7 +967,8 @@ def write_pubspec(s, package, search_path, context, indir):
     s.write('name: {}'.format(package))
     s.write('description: A ros {} message package for dartros'.format(package))
     s.write('version: {}'.format(GenVersion))
-    s.write('repository: https://github.com/TimWhiting/{}_dart'.format(package))
+    if package == 'std_msgs' or package == 'rosgraph_msgs' or package == 'actionlib_msgs' or package == 'sensor_msgs' or package == 'geometry_msgs':
+        s.write('repository: https://github.com/TimWhiting/{}_dart'.format(package))
     msgs = msg_list(package, search_path, '.msg')
     for m in msgs:
         genmsg.load_msg_by_type(context, '%s/%s' %
