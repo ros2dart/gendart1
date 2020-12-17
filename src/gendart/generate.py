@@ -424,28 +424,25 @@ def write_msg_call_initializers(s, spec, field, last):
 
 def write_class(s, spec, action=False):
     # s.write('@rosDeserializeable')
-    # if not action:
-    s.write('class {0} extends RosMessage<{0}> {{'.format(spec.actual_name))
-    # elif action == 'goal':
-    #     base_name = spec.short_name.split('Action')[0]
-    #     s.write('class {} extends RosActionGoal<{}Goal> {{'.format(spec.actual_name, base_name))
-    # elif action == 'feedback':
-    #     base_name = spec.short_name.split('Action')[0]
-    #     s.write('class {} extends RosActionFeedback<{}Feedback> {{'.format(spec.actual_name, base_name))
-    # elif action == 'result':
-    #     base_name = spec.short_name.split('Action')[0]
-    #     s.write('class {} extends RosActionResult<{}Result> {{'.format(spec.actual_name, base_name))
-    # elif action == 'action':
-    #     base_name = spec.short_name.split('Action')[0]
-    #     s.write('class {0}Action extends RosActionMessage<{0}Goal, {0}ActionGoal, {0}Feedback, {0}ActionFeedback, {0}Result, {0}ActionResult> {{'.format(base_name))
-    # action_class = False
-    # if action != 'action' and action != False:
-    #     action_class = True
+    if action:
+        base_name = spec.short_name.split('Action')[0]
+        if action == 'goal':
+            s.write('class {0}ActionGoal extends RosActionGoal<{0}Goal, {0}ActionGoal> {{'.format(base_name))
+        elif action == 'feedback':
+            s.write('class {0}ActionFeedback extends RosActionFeedback<{0}Feedback, {0}ActionFeedback> {{'.format(base_name))
+        elif action == 'result':
+            s.write('class {0}ActionResult extends RosActionResult<{0}Result, {0}ActionResult> {{'.format(base_name))
+        elif action == 'action':
+            s.write('class {0}Action extends RosActionMessage<{0}Goal, {0}ActionGoal, {0}Feedback, {0}ActionFeedback, {0}Result, {0}ActionResult> {{'.format(base_name))
+    else:
+        s.write('class {0} extends RosMessage<{0}> {{'.format(spec.actual_name))
+
+    action_class = action != False and action != 'action'
 
     with Indent(s):
 
         for field in spec.parsed_fields():
-            write_msg_fields(s, spec, field) #, action=action_class)
+            write_msg_fields(s, spec, field, action=action_class)
             s.newline()
         # Constructor
         s.write('static {0} $prototype = {0}();'.format(spec.actual_name))
