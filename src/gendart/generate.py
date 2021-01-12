@@ -351,12 +351,14 @@ def write_begin(s, spec, is_service=False):
     suffix = 'srv' if is_service else 'msg'
     s.write('// (in-package %s.%s)\n\n' %
             (spec.package, suffix), newline=False)
+    s.write('// ignore_for_file: unused_import, overridden_fields')
 
 def write_extra_action_requires(s, spec):
-    base_name = spec.short_name.split('Action')[0]
-    s.write('import \'{}Goal.dart\';'.format(base_name))
-    s.write('import \'{}Feedback.dart\';'.format(base_name))
-    s.write('import \'{}Result.dart\';'.format(base_name))
+    if (spec.short_name.endswith('Action')):
+        base_name = spec.short_name.split('Action')[0]
+        s.write('import \'{}Goal.dart\';'.format(base_name))
+        s.write('import \'{}Feedback.dart\';'.format(base_name))
+        s.write('import \'{}Result.dart\';'.format(base_name))
     
 
 def write_requires(s, spec, search_path, output_dir, previous_packages=None, prev_deps=None, isSrv=False):
@@ -451,7 +453,7 @@ def write_class(s, spec, action=False):
         if num_fields > 0:
             s.write('{}({{ '.format(spec.actual_name))
             with Indent(s):
-                for field in spec.parsed_fields():
+                for field in spec.parsed_fields(): 
                     write_msg_constructor_field(s, spec, field)
             s.write('}):')
             for i, field in enumerate(spec.parsed_fields()):
@@ -464,6 +466,7 @@ def write_class(s, spec, action=False):
 
         num_fields = len(spec.parsed_fields())
         if num_fields > 0:
+            s.write('@override')
             s.write('{} call({{ '.format(spec.actual_name))
             with Indent(s):
                 for field in spec.parsed_fields():
@@ -475,6 +478,7 @@ def write_class(s, spec, action=False):
             s.write(');')
             
         else:
+            s.write('@override')
             s.write('{0} call() => {0}();'.format(spec.actual_name))
 
     s.newline()
