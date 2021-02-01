@@ -37,7 +37,8 @@ try:
     from cStringIO import StringIO  # Python 2.x
 except ImportError:
     from io import StringIO  # Python 3.x
-GenVersion = "0.0.3"
+GenVersion = "0.1.0-nullsafety.0"
+DepVersion = '">=0.1.0-0 < 0.2.0"'
 ############################################################
 # Built in types
 ############################################################
@@ -366,7 +367,7 @@ def write_requires(s, spec, search_path, output_dir, previous_packages=None, pre
     if previous_packages is None:
         s.write('import \'dart:convert\';')
         s.write('import \'package:buffer/buffer.dart\';')
-        s.write('import \'package:dartros/msg_utils.dart\';')
+        s.write('import \'package:dartros_msgutils/msg_utils.dart\';')
 
         previous_packages = {}
     if prev_deps is None:
@@ -412,7 +413,7 @@ def write_msg_fields(s, spec, field, action=False):
 
 
 def write_msg_constructor_field(s, spec, field):
-    s.write('{} {},'.format(get_type(field), field.name))
+    s.write('{}? {},'.format(get_type(field), field.name))
 
 
 def write_msg_constructor_initializers(s, spec, field, last):
@@ -981,23 +982,23 @@ def write_pubspec(s, package, search_path, context, indir):
     s.newline()
     s.write('environment:')
     with Indent(s):
-        s.write('sdk: ">=2.7.0 < 3.0.0"')
+        s.write('sdk: ">=2.12.0-0 < 3.0.0"')
     s.newline()
     s.write('dependencies:')
     with Indent(s):
-        s.write('buffer: ^1.0.6') 
-        s.write('dartros: ^0.0.4+3')
+        s.write('buffer: ^1.1.0-nullsafety.0') 
+        s.write('dartros_msgutils: {}'.format(DepVersion))
         for dep in deps:
             if dep == 'std_msgs':
-                s.write('std_msgs: ^{}'.format(GenVersion))
+                s.write('std_msgs: {}'.format(DepVersion))
             elif dep == 'actionlib_msgs':
-                s.write('actionlib_msgs: ^{}'.format(GenVersion))
+                s.write('actionlib_msgs: {}'.format(DepVersion))
             elif dep == 'rosgraph_msgs':
-                s.write('rosgraph_msgs: ^{}'.format(GenVersion))
+                s.write('rosgraph_msgs: {}'.format(DepVersion))
             elif dep == 'sensor_msgs':
-                s.write('sensor_msgs: ^{}'.format(GenVersion))
+                s.write('sensor_msgs: {}'.format(DepVersion))
             elif dep == 'geometry_msgs':
-                s.write('geometry_msgs: ^{}'.format(GenVersion))
+                s.write('geometry_msgs: {}'.format(DepVersion))
             else:
                 s.write('{}:'.format(dep))
                 with Indent(s):
