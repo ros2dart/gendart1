@@ -970,6 +970,8 @@ def write_pubspec(s, package, search_path, context, indir):
     s.write('version: {}'.format(GenVersion))
     if package == 'std_msgs' or package == 'rosgraph_msgs' or package == 'actionlib_msgs' or package == 'sensor_msgs' or package == 'geometry_msgs':
         s.write('repository: https://github.com/TimWhiting/{}_dart'.format(package))
+    else:
+        s.write('publish_to: "none"')
     msgs = msg_list(package, search_path, '.msg')
     for m in msgs:
         genmsg.load_msg_by_type(context, '%s/%s' %
