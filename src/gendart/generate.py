@@ -37,8 +37,8 @@ try:
     from cStringIO import StringIO  # Python 2.x
 except ImportError:
     from io import StringIO  # Python 3.x
-GenVersion = "0.1.0-nullsafety.0"
-DepVersion = '">=0.1.0-0 < 0.2.0"'
+GenVersion = "0.1.0"
+DepVersion = '">=0.1.0 < 0.2.0"'
 ############################################################
 # Built in types
 ############################################################
@@ -982,11 +982,11 @@ def write_pubspec(s, package, search_path, context, indir):
     s.newline()
     s.write('environment:')
     with Indent(s):
-        s.write('sdk: ">=2.12.0-0 < 3.0.0"')
+        s.write('sdk: ">=2.12.0 < 3.0.0"')
     s.newline()
     s.write('dependencies:')
     with Indent(s):
-        s.write('buffer: ^1.1.0-nullsafety.0') 
+        s.write('buffer: ^1.1.0')
         s.write('dartros_msgutils: {}'.format(DepVersion))
         for dep in deps:
             if dep == 'std_msgs':
