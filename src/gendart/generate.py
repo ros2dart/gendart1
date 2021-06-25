@@ -1200,8 +1200,8 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
     @type msg_path: str
     """
     output_file = '%s/lib/src/msgs/%s.dart' % (output_dir, spec.short_name)
-    if not needs_update(infile, output_file):
-        return
+    # if not needs_update(infile, output_file): TODO: Only generate message if dependent has changed
+    #     return
     genmsg.msg_loader.load_depends(msg_context, spec, search_path)
     spec.actual_name = spec.short_name
     for field in spec.parsed_fields():
@@ -1271,8 +1271,8 @@ def generate_msg_from_spec(msg_context, spec, search_path, output_dir, package, 
 def generate_srv_from_spec(msg_context, spec, search_path, output_dir, package, path):
     "Generate code from .srv file"
     output_file = '%s/lib/src/srvs/%s.dart' % (output_dir, spec.short_name)
-    if not needs_update(path, output_file):
-        return
+    # if not needs_update(path, output_file): TODO: Only generate if dependent has changed
+    #     return
     genmsg.msg_loader.load_depends(msg_context, spec, search_path)
     ext = '.srv'
     srv_path = os.path.dirname(path)
