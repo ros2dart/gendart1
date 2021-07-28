@@ -43,7 +43,7 @@ DepVersion = '">=0.1.0 < 0.2.0"'
 # Built in types
 ############################################################
 generated_packages = set()
-DebugGen = False
+DebugGen = True
 
 def is_fixnum(t):
     return t in ['int8', 'uint8', 'int16', 'uint16']
