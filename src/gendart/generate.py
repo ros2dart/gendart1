@@ -1145,14 +1145,14 @@ def generate_srv(pkg, files, out_dir, search_path):
     io.close()
 
 def msg_list(pkg, search_path, ext):
-    dir_list = search_path[pkg]
+    dir_list = search_path.get(pkg, [])
     files = []
     for d in dir_list:
         files.extend([f for f in os.listdir(d) if f.endswith(ext)])
     return [f[:-len(ext)] for f in files]
 
 def msg_list_full_path(pkg, search_path, ext):
-    dir_list = search_path[pkg]
+    dir_list = search_path.get(pkg, [])
     files = []
     for d in dir_list:
         files.extend([pjoin(d,f) for f in os.listdir(d) if f.endswith(ext)])
