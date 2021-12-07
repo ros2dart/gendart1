@@ -936,6 +936,8 @@ def write_srv_end(s, context, spec):
         s.write('@override')
         s.write('String get fullType => \'{}\';'.format(
             spec.full_name))
+        s.write('@override')
+        s.write('String get messageDefinition => request.messageDefinition + "---" + response.messageDefinition;')
     s.write('}')
     s.newline()
 
