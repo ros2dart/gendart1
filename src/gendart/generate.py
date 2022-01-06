@@ -352,7 +352,7 @@ def write_begin(s, spec, is_service=False):
     suffix = 'srv' if is_service else 'msg'
     s.write('// (in-package %s.%s)\n\n' %
             (spec.package, suffix), newline=False)
-    s.write('// ignore_for_file: unused_import, overridden_fields')
+    s.write('// ignore_for_file: type=lint')
 
 def write_extra_action_requires(s, spec):
     if (spec.short_name.endswith('Action')):
